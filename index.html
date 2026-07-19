@@ -274,7 +274,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
    KONFIGURATION — hier deine Supabase-Zugangsdaten eintragen
    (Project Settings -> API in deinem Supabase-Projekt)
    ===================================================================== */
-const SUPABASE_URL = 'https://cmggdraktkijfmptlynx.supabase.co';
+const SUPABASE_URL = 'https://cmggdraktkijfmptlynx.supabase.co/rest/v1/';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtZ2dkcmFrdGtpamZtcHRseW54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzYzMDYsImV4cCI6MjA5OTk1MjMwNn0.VNPghMV6h8qHASpt-bpm_kC_dLP_yVkPFZkMzX5s8Nw';
 /* ===================================================================== */
 
@@ -311,6 +311,8 @@ const state = {
   poolFolderFilter: '',
   poolSort: 'latin',
   poolSelected: {},
+  autoFillStatus: 'idle',
+  autoFillMessage: '',
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
@@ -387,7 +389,127 @@ function shuffle(arr){
   for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; }
   return a;
 }
-function navigiumUrl(word){ return 'https://www.navigium.de/latein-woerterbuch.php?form=' + encodeURIComponent((word||'').trim()); }
+function fragCaesarUrl(word){ return 'https://www.frag-caesar.de/lateinwoerterbuch/' + encodeURIComponent((word||'').trim().toLowerCase()) + '-uebersetzung.html'; }
+
+/* ---- Best-effort automatic form lookup on frag-caesar.de ----
+   Runs entirely in the browser via a public CORS proxy (api.allorigins.win),
+   since frag-caesar.de itself has no API and no CORS headers of its own.
+   This is inherently fragile: it depends on the third-party proxy staying
+   online and on frag-caesar.de's page structure not changing. Failures are
+   caught and surfaced to the user rather than silently producing bad data. */
+async function fetchViaProxy(url){
+  const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+  const res = await fetch(proxied);
+  if(!res.ok) throw new Error('Netzwerkfehler (' + res.status + ')');
+  return await res.text();
+}
+
+function tableRows(table){
+  return Array.from(table.querySelectorAll('tr')).map(tr =>
+    Array.from(tr.querySelectorAll('td,th')).map(c => c.textContent.trim())
+  );
+}
+function firstToken(s){
+  return (s||'').split(/\s{2,}|\t|\n/)[0].trim();
+}
+
+function findTableRowsAfterHeading(headings, headingRegex, headerMustInclude){
+  for(const h of headings){
+    if(headingRegex.test(h.textContent.trim())){
+      const anchorLevel = parseInt(h.tagName[1], 10);
+      let node = h.nextElementSibling;
+      let hops = 0;
+      while(node && hops < 10){
+        if(node.tagName === 'TABLE'){
+          const rows = tableRows(node);
+          const headerOk = !headerMustInclude || (rows[0] && rows[0].join(' ').toLowerCase().includes(headerMustInclude));
+          if(headerOk) return rows;
+        } else if(/^H[1-6]$/.test(node.tagName)){
+          const level = parseInt(node.tagName[1], 10);
+          if(level <= anchorLevel) break; // reached a new section at the same or a higher level
+          // otherwise it's a subheading (e.g. "Singular" under "Partizip Perfekt Passiv") — skip past it
+        }
+        node = node.nextElementSibling;
+        hops++;
+      }
+    }
+  }
+  return null;
+}
+
+async function fetchFragCaesarForms(word, wantedType){
+  const typeLabel = { verb:'Verb', noun:'Nomen', adjective:'Adjektiv' }[wantedType];
+  const baseHtml = await fetchViaProxy(fragCaesarUrl(word));
+  let doc = new DOMParser().parseFromString(baseHtml, 'text/html');
+
+  // Disambiguation page ("Ihr Suchwort X entspricht Formen von ... Wörtern"):
+  // pick the link whose label matches the word type selected in the form.
+  if(!/Kurzübersicht/i.test(doc.body.textContent)){
+    const links = Array.from(doc.querySelectorAll('a[href*="-uebersetzung-"]'));
+    const match = links.find(a => new RegExp(typeLabel, 'i').test(a.parentElement ? a.parentElement.textContent : a.textContent));
+    if(match && match.href){
+      const html2 = await fetchViaProxy(match.href);
+      doc = new DOMParser().parseFromString(html2, 'text/html');
+    }
+  }
+
+  const headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6'));
+  const result = { forms: {}, meanings: [] };
+
+  // German meanings, listed under "Aufstellung aller Formen"
+  const formsHeading = headings.find(h => /Aufstellung aller Formen/i.test(h.textContent));
+  if(formsHeading){
+    let node = formsHeading.nextElementSibling;
+    while(node && node.tagName !== 'UL' && !/^H[1-6]$/.test(node.tagName)) node = node.nextElementSibling;
+    if(node && node.tagName === 'UL'){
+      result.meanings = Array.from(node.querySelectorAll('li')).map(li => li.textContent.trim()).filter(Boolean);
+    }
+  }
+
+  // Gender, from the "Kurzübersicht" summary table
+  const kurzRows = findTableRowsAfterHeading(headings, /Kurzübersicht/i, null);
+  if(kurzRows && kurzRows.length >= 2){
+    const header = kurzRows[0].map(c => c.toLowerCase());
+    const genderIdx = header.indexOf('geschlecht');
+    if(genderIdx > -1 && kurzRows[1][genderIdx]) result.forms.genus = kurzRows[1][genderIdx];
+  }
+
+  if(wantedType === 'verb'){
+    const praesensRows = findTableRowsAfterHeading(headings, /^Präsens Indikativ$/i, 'aktiv');
+    if(praesensRows){
+      const row = praesensRows.find(r => /1\.\s*Person\s*Singular/i.test(r[0]||''));
+      if(row && row[1]) result.forms.praesens = firstToken(row[1]);
+    }
+    const perfektRows = findTableRowsAfterHeading(headings, /^Perfekt Indikativ$/i, 'aktiv');
+    if(perfektRows){
+      const row = perfektRows.find(r => /1\.\s*Person\s*Singular/i.test(r[0]||''));
+      if(row && row[1]) result.forms.perfekt = firstToken(row[1]);
+    }
+    const pppRows = findTableRowsAfterHeading(headings, /Partizip Perfekt Passiv/i, 'neutrum');
+    if(pppRows){
+      const row = pppRows.find(r => /^Nominativ/i.test(r[0]||''));
+      if(row){
+        if(row.length >= 4 && row[3]) result.forms.ppp = firstToken(row[3]);
+        else if(row.length === 3 && row[2]) result.forms.ppp = firstToken(row[2]);
+      }
+    }
+  } else if(wantedType === 'noun'){
+    const singularRows = findTableRowsAfterHeading(headings, /^Singular$/i, 'latein');
+    if(singularRows){
+      const row = singularRows.find(r => /^Genitiv/i.test(r[0]||''));
+      if(row && row[1]) result.forms.genitiv = firstToken(row[1]);
+    }
+  } else if(wantedType === 'adjective'){
+    const declRows = findTableRowsAfterHeading(headings, /^Singular$/i, 'femininum');
+    if(declRows){
+      const row = declRows.find(r => /^Nominativ/i.test(r[0]||''));
+      if(row && row[2]) result.forms.nomF = firstToken(row[2]);
+      if(row && row[3]) result.forms.nomN = firstToken(row[3]);
+    }
+  }
+
+  return result;
+}
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function folderName(id){ if(!id) return null; const f = state.folders.find(x=>x.id===id); return f ? f.name : null; }
 function poolByFolder(folderId){ if(!folderId) return state.pool; return state.pool.filter(v => (v.folderId||null) === folderId); }
@@ -421,6 +543,7 @@ function formFieldsFor(type){
 function resetDraft(){
   state.editingId = null; state.draftType = 'verb'; state.draftLatin = '';
   state.draftForms = {}; state.draftFolderId = null; state.meaningsDraft = ['']; state.errors = {};
+  state.autoFillStatus = 'idle'; state.autoFillMessage = '';
 }
 function startEditEntry(v){
   state.editingId = v.id; state.draftType = v.type; state.draftLatin = v.latin;
@@ -651,9 +774,11 @@ function renderAddTab(){
           <label class="field-label">Vokabel (Grundform) <span class="req">*</span></label>
           <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen">
           ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
-          <div class="field-hint">
-            <a class="navigium-link" id="navigiumLink" href="${navigiumUrl(latinVal)}" target="_blank" rel="noopener">Bei Navigium nachschlagen ↗</a>
+          <div class="field-hint" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <a class="navigium-link" id="fragCaesarLink" href="${fragCaesarUrl(latinVal)}" target="_blank" rel="noopener">Bei Frag-Caesar nachschlagen ↗</a>
+            <button type="button" class="btn secondary small" id="autoFillBtn" ${(!latinVal.trim() || state.autoFillStatus==='loading' || type==='other')?'disabled':''}>${state.autoFillStatus==='loading' ? 'Lädt…' : '⚡ Formen automatisch ausfüllen'}</button>
           </div>
+          ${state.autoFillMessage ? `<div class="${state.autoFillStatus==='error'?'field-error-msg':'field-notice-msg'}">${escapeHtml(state.autoFillMessage)}</div>` : ''}
         </div>
         <div class="field">
           <label class="field-label">Wortart</label>
@@ -712,7 +837,38 @@ function bindAddTabEvents(){
 
   document.getElementById('latinInput').addEventListener('input', e=>{
     state.draftLatin = e.target.value;
-    document.getElementById('navigiumLink').href = navigiumUrl(e.target.value);
+    document.getElementById('fragCaesarLink').href = fragCaesarUrl(e.target.value);
+  });
+
+  const autoFillBtn = document.getElementById('autoFillBtn');
+  if(autoFillBtn) autoFillBtn.addEventListener('click', async ()=>{
+    const word = (state.draftLatin||'').trim();
+    if(!word || state.draftType === 'other') return;
+    state.autoFillStatus = 'loading';
+    state.autoFillMessage = '';
+    render();
+    try{
+      const result = await fetchFragCaesarForms(word, state.draftType);
+      let filledCount = 0;
+      Object.keys(result.forms||{}).forEach(k=>{
+        if(result.forms[k]){
+          const val = (k==='genus') ? normalizeGenus(result.forms[k]) : result.forms[k];
+          if(val){ state.draftForms[k] = val; filledCount++; }
+        }
+      });
+      if(result.meanings && result.meanings.length){
+        state.meaningsDraft = result.meanings.slice(0, 6);
+      }
+      state.autoFillStatus = filledCount > 0 ? 'success' : 'error';
+      state.autoFillMessage = filledCount > 0
+        ? 'Formen automatisch übernommen — bitte kurz prüfen, bevor du speicherst.'
+        : 'Es konnten keine Formen automatisch erkannt werden. Bitte manuell eintragen oder den Link oben nutzen.';
+    }catch(err){
+      console.error(err);
+      state.autoFillStatus = 'error';
+      state.autoFillMessage = 'Automatisches Abrufen fehlgeschlagen (' + err.message + '). Bitte manuell eintragen oder den Link oben nutzen.';
+    }
+    render();
   });
 
   document.querySelectorAll('#typeSegmented button').forEach(btn=>{
