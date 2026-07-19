@@ -154,6 +154,15 @@ input.field-error{ border-color:var(--error); background:var(--error-tint); }
 .quick-add-row input{ flex:1; }
 
 .pool-item.compact{ padding:6px 10px; font-size:13px; }
+.pool-checkbox{ flex-shrink:0; width:16px; height:16px; accent-color:var(--accent); }
+.select-all-row{ font-size:12.5px; color:var(--ink-soft); margin:2px 0 10px; }
+.select-all-row label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
+.bulk-bar{
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:var(--accent-tint); border:1px solid var(--accent); border-radius:8px;
+  padding:10px 14px; margin-bottom:12px; font-size:13px; color:var(--accent-dark);
+}
+.bulk-bar select{ padding:6px 8px; border-radius:6px; border:1px solid var(--card-edge); background:#fffdf7; font-size:13px; }
 
 .folder-manage-row{ display:flex; gap:8px; margin-bottom:12px; }
 .folder-manage-row input{ flex:1; }
@@ -301,6 +310,7 @@ const state = {
   poolFilter: '',
   poolFolderFilter: '',
   poolSort: 'latin',
+  poolSelected: {},
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
@@ -345,6 +355,10 @@ async function updateVocabRow(id, entry){
 }
 async function deleteVocabRow(id){
   const { error } = await sbClient.from('vocab').delete().eq('id', id);
+  if(error) throw error;
+}
+async function bulkMoveVocab(ids, folderId){
+  const { error } = await sbClient.from('vocab').update({ folder_id: folderId }).in('id', ids);
   if(error) throw error;
 }
 async function insertFolder(name){
@@ -433,18 +447,33 @@ function setActiveTab(tab){
   render();
 }
 document.addEventListener('keydown', e=>{
-  if(state.activeTab !== 'practice') return;
-  if(!document.getElementById('flashcard')) return;
-  const tag = document.activeElement ? document.activeElement.tagName : '';
-  if(tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-  if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.key === 'ArrowRight'){
+  if(state.activeTab === 'practice'){
+    const card = document.getElementById('flashcard');
+    if(!card) return;
+    const tag = document.activeElement ? document.activeElement.tagName : '';
+    if(tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.key === 'ArrowRight'){
+      e.preventDefault();
+      if(!state.practice.flipped){
+        card.click(); // flip first
+      } else {
+        const btn = document.getElementById('nextCard');
+        if(btn) btn.click();
+      }
+    } else if(e.key === 'ArrowLeft'){
+      e.preventDefault();
+      const btn = document.getElementById('prevCard');
+      if(btn) btn.click();
+    }
+  } else if(state.activeTab === 'test' && state.test.phase === 'running'){
+    if(e.key !== 'Enter') return;
+    const tag = document.activeElement ? document.activeElement.tagName : '';
+    if(tag === 'SELECT') return;
     e.preventDefault();
-    const btn = document.getElementById('nextCard');
-    if(btn) btn.click();
-  } else if(e.key === 'ArrowLeft'){
-    e.preventDefault();
-    const btn = document.getElementById('prevCard');
-    if(btn) btn.click();
+    const checkBtn = document.getElementById('checkAnswerBtn');
+    const nextBtn = document.getElementById('nextQuestionBtn');
+    if(checkBtn) checkBtn.click();
+    else if(nextBtn) nextBtn.click();
   }
 });
 
@@ -637,15 +666,11 @@ function renderAddTab(){
           <button type="button" class="link-add" id="addMeaningBtn">+ weitere Bedeutung</button>
           ${meaningsErr ? `<div class="field-error-msg">${meaningsErr}</div>` : ''}
         </div>
-        <div class="field">
-          <label class="field-label">Ordner</label>
-          <select class="select-field" id="folderSelect">${renderFolderOptions(state.draftFolderId)}</select>
-          <div class="field-hint">Übernimmt automatisch den oben gewählten Ordner-Kontext, lässt sich hier aber jederzeit für diese eine Vokabel ändern.</div>
-        </div>
         <div class="btn-row">
           <button type="submit" class="btn">${editing ? 'Änderungen speichern' : 'Zum Vokabelpool hinzufügen'}</button>
           ${editing ? '<button type="button" class="btn secondary" id="cancelEditBtn">Abbrechen</button>' : ''}
         </div>
+
       </form>
     </div>
   `;
@@ -702,8 +727,6 @@ function bindAddTabEvents(){
   document.querySelectorAll('[data-form-key]').forEach(inp=>{
     inp.addEventListener('input', e=>{ state.draftForms[e.target.dataset.formKey] = e.target.value; });
   });
-
-  document.getElementById('folderSelect').addEventListener('change', e=>{ state.draftFolderId = e.target.value || null; });
 
   document.getElementById('meaningsList').addEventListener('input', e=>{
     const idx = e.target.dataset.meaningIdx;
@@ -792,12 +815,14 @@ function sortedPool(list){
 }
 
 function renderPoolTab(){
-  const poolItems = sortedPool(
+  const listEntries = sortedPool(
     state.pool
       .filter(v => v.latin.toLowerCase().includes(state.poolFilter.toLowerCase()))
       .filter(v => !state.poolFolderFilter || (v.folderId||'')===state.poolFolderFilter)
-  ).map(v => `
+  );
+  const poolItems = listEntries.map(v => `
       <div class="pool-item compact">
+        <input type="checkbox" class="pool-checkbox" data-select-vocab="${v.id}" ${state.poolSelected[v.id]?'checked':''}>
         <span class="lw">${escapeHtml(v.latin)}</span>
         <span class="meta">${TYPE_LABELS[v.type]} · ${escapeHtml(v.meanings.join(', '))}</span>
         ${folderName(v.folderId) ? `<span class="folder-chip">${escapeHtml(folderName(v.folderId))}</span>` : ''}
@@ -807,6 +832,21 @@ function renderPoolTab(){
         </span>
       </div>
     `).join('');
+
+  const selectedIds = Object.keys(state.poolSelected).filter(id => state.poolSelected[id] && state.pool.some(v=>v.id===id));
+  const allVisibleSelected = listEntries.length>0 && listEntries.every(v=>state.poolSelected[v.id]);
+
+  const bulkBar = selectedIds.length ? `
+    <div class="bulk-bar">
+      <span>${selectedIds.length} ausgewählt</span>
+      <select id="bulkFolderSelect">
+        <option value="">Kein Ordner</option>
+        ${state.folders.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('')}
+      </select>
+      <button type="button" class="btn small" id="bulkMoveBtn">In Ordner verschieben</button>
+      <button type="button" class="btn secondary small" id="bulkClearBtn">Auswahl aufheben</button>
+    </div>
+  ` : '';
 
   return `
     <div class="panel">
@@ -824,6 +864,10 @@ function renderPoolTab(){
             <option value="created" ${state.poolSort==='created'?'selected':''}>Zuletzt hinzugefügt</option>
           </select>
         </div>
+        <div class="select-all-row">
+          <label><input type="checkbox" id="selectAllPool" ${allVisibleSelected?'checked':''}> Alle sichtbaren auswählen</label>
+        </div>
+        ${bulkBar}
       ` : ''}
       <div class="pool-list">
         ${state.pool.length ? (poolItems || '<div class="empty-note">Keine Treffer.</div>') : '<div class="empty-note">Noch keine Vokabeln — füge zuerst welche hinzu.</div>'}
@@ -861,6 +905,36 @@ function bindPoolTabEvents(){
   const poolSort = document.getElementById('poolSort');
   if(poolSort) poolSort.addEventListener('change', e=>{ state.poolSort = e.target.value; render(); });
 
+  document.querySelectorAll('[data-select-vocab]').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const id = e.target.dataset.selectVocab;
+      if(e.target.checked) state.poolSelected[id] = true; else delete state.poolSelected[id];
+      render();
+    });
+  });
+  const selectAll = document.getElementById('selectAllPool');
+  if(selectAll) selectAll.addEventListener('change', e=>{
+    document.querySelectorAll('[data-select-vocab]').forEach(cb=>{
+      if(e.target.checked) state.poolSelected[cb.dataset.selectVocab] = true;
+      else delete state.poolSelected[cb.dataset.selectVocab];
+    });
+    render();
+  });
+  const bulkMoveBtn = document.getElementById('bulkMoveBtn');
+  if(bulkMoveBtn) bulkMoveBtn.addEventListener('click', async ()=>{
+    const ids = Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
+    if(ids.length===0) return;
+    const folderId = document.getElementById('bulkFolderSelect').value || null;
+    try{
+      await bulkMoveVocab(ids, folderId);
+      state.poolSelected = {};
+      await loadPool();
+      render();
+    }catch(err){ console.error(err); alert('Verschieben fehlgeschlagen: ' + err.message); }
+  });
+  const bulkClearBtn = document.getElementById('bulkClearBtn');
+  if(bulkClearBtn) bulkClearBtn.addEventListener('click', ()=>{ state.poolSelected = {}; render(); });
+
   document.getElementById('createFolderBtn').addEventListener('click', async ()=>{
     const nameInput = document.getElementById('newFolderName');
     const name = nameInput.value.trim();
@@ -893,6 +967,7 @@ function bindPoolTabEvents(){
       try{
         await deleteVocabRow(btn.dataset.delete);
         if(state.editingId===btn.dataset.delete) resetDraft();
+        delete state.poolSelected[btn.dataset.delete];
         await loadPool();
         render();
       }catch(err){ console.error(err); }
