@@ -1438,6 +1438,12 @@ function bindTabEvents(){
 
 document.querySelectorAll('nav.tabs button').forEach(b=> b.addEventListener('click', ()=> setActiveTab(b.dataset.tab)));
 
+  console.log("RAW_URL:", RAW_URL);
+console.log("CLEAN_URL:", CLEAN_URL);
+console.log("CONFIG_MISSING:", CONFIG_MISSING);
+console.log("CONFIG_INVALID:", CONFIG_INVALID);
+console.log("window.supabase:", window.supabase);
+console.log("sbClient:", sbClient);
 /* ===================== INIT ===================== */
 (async function init(){
   if(CONFIG_MISSING){ render(); return; }
