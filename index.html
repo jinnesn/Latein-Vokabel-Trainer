@@ -318,6 +318,7 @@ const state = {
   poolFolderFilter: '',
   poolSort: 'latin',
   poolSelected: {},
+  poolSelectMode: false,
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
@@ -469,8 +470,12 @@ document.addEventListener('keydown', e=>{
       }
     } else if(e.key === 'ArrowLeft'){
       e.preventDefault();
-      const btn = document.getElementById('prevCard');
-      if(btn) btn.click();
+      if(state.practice.flipped){
+        card.click(); // step back: flip to the front again first
+      } else {
+        const btn = document.getElementById('prevCard');
+        if(btn) btn.click();
+      }
     }
   } else if(state.activeTab === 'test' && state.test.phase === 'running'){
     if(e.key !== 'Enter') return;
@@ -839,7 +844,7 @@ function renderPoolTab(){
   );
   const poolItems = listEntries.map(v => `
       <div class="pool-item compact">
-        <input type="checkbox" class="pool-checkbox" data-select-vocab="${v.id}" ${state.poolSelected[v.id]?'checked':''}>
+        ${state.poolSelectMode ? `<input type="checkbox" class="pool-checkbox" data-select-vocab="${v.id}" ${state.poolSelected[v.id]?'checked':''}>` : ''}
         <span class="lw">${escapeHtml(v.latin)}</span>
         <span class="meta">${TYPE_LABELS[v.type]} · ${escapeHtml(v.meanings.join(', '))}</span>
         ${folderName(v.folderId) ? `<span class="folder-chip">${escapeHtml(folderName(v.folderId))}</span>` : ''}
@@ -853,7 +858,7 @@ function renderPoolTab(){
   const selectedIds = Object.keys(state.poolSelected).filter(id => state.poolSelected[id] && state.pool.some(v=>v.id===id));
   const allVisibleSelected = listEntries.length>0 && listEntries.every(v=>state.poolSelected[v.id]);
 
-  const bulkBar = selectedIds.length ? `
+  const bulkBar = (state.poolSelectMode && selectedIds.length) ? `
     <div class="bulk-bar">
       <span>${selectedIds.length} ausgewählt</span>
       <select id="bulkFolderSelect">
@@ -867,7 +872,10 @@ function renderPoolTab(){
 
   return `
     <div class="panel">
-      <h2 class="section-title">Vokabelpool (${state.pool.length})</h2>
+      <h2 class="section-title">
+        Vokabelpool (${state.pool.length})
+        ${state.pool.length ? `<button type="button" class="btn secondary small" id="toggleSelectMode">${state.poolSelectMode ? 'Fertig' : 'Auswählen'}</button>` : ''}
+      </h2>
       ${state.pool.length ? `
         <div class="filter-row">
           <input type="text" id="poolSearch" placeholder="Vokabel suchen…" value="${escapeHtml(state.poolFilter)}">
@@ -881,9 +889,11 @@ function renderPoolTab(){
             <option value="created" ${state.poolSort==='created'?'selected':''}>Zuletzt hinzugefügt</option>
           </select>
         </div>
+        ${state.poolSelectMode ? `
         <div class="select-all-row">
           <label><input type="checkbox" id="selectAllPool" ${allVisibleSelected?'checked':''}> Alle sichtbaren auswählen</label>
         </div>
+        ` : ''}
         ${bulkBar}
       ` : ''}
       <div class="pool-list">
@@ -909,6 +919,13 @@ function renderPoolTab(){
 }
 
 function bindPoolTabEvents(){
+  const toggleSelectMode = document.getElementById('toggleSelectMode');
+  if(toggleSelectMode) toggleSelectMode.addEventListener('click', ()=>{
+    state.poolSelectMode = !state.poolSelectMode;
+    if(!state.poolSelectMode) state.poolSelected = {};
+    render();
+  });
+
   const poolSearch = document.getElementById('poolSearch');
   if(poolSearch) poolSearch.addEventListener('input', e=>{
     const pos = e.target.selectionStart;
