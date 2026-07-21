@@ -285,7 +285,14 @@ const CLEAN_URL = RAW_URL.replace(/\/+$/, ''); // trailing slash breaks Supabase
 const CONFIG_INVALID = !CONFIG_MISSING && (
   !/^https:\/\/[a-zA-Z0-9-]+\.supabase\.co$/.test(CLEAN_URL) || RAW_KEY.length < 20
 );
-const sbClient = (CONFIG_MISSING || CONFIG_INVALID) ? null : window.supabase.createClient(CLEAN_URL, RAW_KEY);
+const SDK_MISSING = !CONFIG_MISSING && !CONFIG_INVALID &&
+  (typeof window.supabase === 'undefined' || typeof window.supabase.createClient !== 'function');
+let STARTUP_ERROR = CONFIG_MISSING ? 'missing' : CONFIG_INVALID ? 'invalid' : SDK_MISSING ? 'sdk' : '';
+let sbClient = null;
+if(!STARTUP_ERROR){
+  try{ sbClient = window.supabase.createClient(CLEAN_URL, RAW_KEY); }
+  catch(e){ console.error(e); STARTUP_ERROR = 'sdk'; }
+}
 
 /* ===================== STATE ===================== */
 const state = {
@@ -311,8 +318,6 @@ const state = {
   poolFolderFilter: '',
   poolSort: 'latin',
   poolSelected: {},
-  autoFillStatus: 'idle',
-  autoFillMessage: '',
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
@@ -390,126 +395,6 @@ function shuffle(arr){
   return a;
 }
 function fragCaesarUrl(word){ return 'https://www.frag-caesar.de/lateinwoerterbuch/' + encodeURIComponent((word||'').trim().toLowerCase()) + '-uebersetzung.html'; }
-
-/* ---- Best-effort automatic form lookup on frag-caesar.de ----
-   Runs entirely in the browser via a public CORS proxy (api.allorigins.win),
-   since frag-caesar.de itself has no API and no CORS headers of its own.
-   This is inherently fragile: it depends on the third-party proxy staying
-   online and on frag-caesar.de's page structure not changing. Failures are
-   caught and surfaced to the user rather than silently producing bad data. */
-async function fetchViaProxy(url){
-  const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
-  const res = await fetch(proxied);
-  if(!res.ok) throw new Error('Netzwerkfehler (' + res.status + ')');
-  return await res.text();
-}
-
-function tableRows(table){
-  return Array.from(table.querySelectorAll('tr')).map(tr =>
-    Array.from(tr.querySelectorAll('td,th')).map(c => c.textContent.trim())
-  );
-}
-function firstToken(s){
-  return (s||'').split(/\s{2,}|\t|\n/)[0].trim();
-}
-
-function findTableRowsAfterHeading(headings, headingRegex, headerMustInclude){
-  for(const h of headings){
-    if(headingRegex.test(h.textContent.trim())){
-      const anchorLevel = parseInt(h.tagName[1], 10);
-      let node = h.nextElementSibling;
-      let hops = 0;
-      while(node && hops < 10){
-        if(node.tagName === 'TABLE'){
-          const rows = tableRows(node);
-          const headerOk = !headerMustInclude || (rows[0] && rows[0].join(' ').toLowerCase().includes(headerMustInclude));
-          if(headerOk) return rows;
-        } else if(/^H[1-6]$/.test(node.tagName)){
-          const level = parseInt(node.tagName[1], 10);
-          if(level <= anchorLevel) break; // reached a new section at the same or a higher level
-          // otherwise it's a subheading (e.g. "Singular" under "Partizip Perfekt Passiv") — skip past it
-        }
-        node = node.nextElementSibling;
-        hops++;
-      }
-    }
-  }
-  return null;
-}
-
-async function fetchFragCaesarForms(word, wantedType){
-  const typeLabel = { verb:'Verb', noun:'Nomen', adjective:'Adjektiv' }[wantedType];
-  const baseHtml = await fetchViaProxy(fragCaesarUrl(word));
-  let doc = new DOMParser().parseFromString(baseHtml, 'text/html');
-
-  // Disambiguation page ("Ihr Suchwort X entspricht Formen von ... Wörtern"):
-  // pick the link whose label matches the word type selected in the form.
-  if(!/Kurzübersicht/i.test(doc.body.textContent)){
-    const links = Array.from(doc.querySelectorAll('a[href*="-uebersetzung-"]'));
-    const match = links.find(a => new RegExp(typeLabel, 'i').test(a.parentElement ? a.parentElement.textContent : a.textContent));
-    if(match && match.href){
-      const html2 = await fetchViaProxy(match.href);
-      doc = new DOMParser().parseFromString(html2, 'text/html');
-    }
-  }
-
-  const headings = Array.from(doc.querySelectorAll('h1,h2,h3,h4,h5,h6'));
-  const result = { forms: {}, meanings: [] };
-
-  // German meanings, listed under "Aufstellung aller Formen"
-  const formsHeading = headings.find(h => /Aufstellung aller Formen/i.test(h.textContent));
-  if(formsHeading){
-    let node = formsHeading.nextElementSibling;
-    while(node && node.tagName !== 'UL' && !/^H[1-6]$/.test(node.tagName)) node = node.nextElementSibling;
-    if(node && node.tagName === 'UL'){
-      result.meanings = Array.from(node.querySelectorAll('li')).map(li => li.textContent.trim()).filter(Boolean);
-    }
-  }
-
-  // Gender, from the "Kurzübersicht" summary table
-  const kurzRows = findTableRowsAfterHeading(headings, /Kurzübersicht/i, null);
-  if(kurzRows && kurzRows.length >= 2){
-    const header = kurzRows[0].map(c => c.toLowerCase());
-    const genderIdx = header.indexOf('geschlecht');
-    if(genderIdx > -1 && kurzRows[1][genderIdx]) result.forms.genus = kurzRows[1][genderIdx];
-  }
-
-  if(wantedType === 'verb'){
-    const praesensRows = findTableRowsAfterHeading(headings, /^Präsens Indikativ$/i, 'aktiv');
-    if(praesensRows){
-      const row = praesensRows.find(r => /1\.\s*Person\s*Singular/i.test(r[0]||''));
-      if(row && row[1]) result.forms.praesens = firstToken(row[1]);
-    }
-    const perfektRows = findTableRowsAfterHeading(headings, /^Perfekt Indikativ$/i, 'aktiv');
-    if(perfektRows){
-      const row = perfektRows.find(r => /1\.\s*Person\s*Singular/i.test(r[0]||''));
-      if(row && row[1]) result.forms.perfekt = firstToken(row[1]);
-    }
-    const pppRows = findTableRowsAfterHeading(headings, /Partizip Perfekt Passiv/i, 'neutrum');
-    if(pppRows){
-      const row = pppRows.find(r => /^Nominativ/i.test(r[0]||''));
-      if(row){
-        if(row.length >= 4 && row[3]) result.forms.ppp = firstToken(row[3]);
-        else if(row.length === 3 && row[2]) result.forms.ppp = firstToken(row[2]);
-      }
-    }
-  } else if(wantedType === 'noun'){
-    const singularRows = findTableRowsAfterHeading(headings, /^Singular$/i, 'latein');
-    if(singularRows){
-      const row = singularRows.find(r => /^Genitiv/i.test(r[0]||''));
-      if(row && row[1]) result.forms.genitiv = firstToken(row[1]);
-    }
-  } else if(wantedType === 'adjective'){
-    const declRows = findTableRowsAfterHeading(headings, /^Singular$/i, 'femininum');
-    if(declRows){
-      const row = declRows.find(r => /^Nominativ/i.test(r[0]||''));
-      if(row && row[2]) result.forms.nomF = firstToken(row[2]);
-      if(row && row[3]) result.forms.nomN = firstToken(row[3]);
-    }
-  }
-
-  return result;
-}
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function folderName(id){ if(!id) return null; const f = state.folders.find(x=>x.id===id); return f ? f.name : null; }
 function poolByFolder(folderId){ if(!folderId) return state.pool; return state.pool.filter(v => (v.folderId||null) === folderId); }
@@ -543,7 +428,6 @@ function formFieldsFor(type){
 function resetDraft(){
   state.editingId = null; state.draftType = 'verb'; state.draftLatin = '';
   state.draftForms = {}; state.draftFolderId = null; state.meaningsDraft = ['']; state.errors = {};
-  state.autoFillStatus = 'idle'; state.autoFillMessage = '';
 }
 function startEditEntry(v){
   state.editingId = v.id; state.draftType = v.type; state.draftLatin = v.latin;
@@ -606,7 +490,7 @@ function render(){
   const nav = document.getElementById('mainNav');
   const el = document.getElementById('content');
 
-  if(CONFIG_MISSING){
+  if(STARTUP_ERROR){
     nav.style.display = 'none';
     el.innerHTML = renderSetupNotice();
     return;
@@ -631,14 +515,24 @@ function render(){
 }
 
 function renderSetupNotice(){
+  let msg;
+  if(STARTUP_ERROR === 'missing'){
+    msg = `Trage im Quelltext dieser Seite ganz oben im <code>&lt;script&gt;</code>-Bereich deine <code>SUPABASE_URL</code> und
+      deinen <code>SUPABASE_ANON_KEY</code> ein (zu finden in deinem Supabase-Projekt unter „Project Settings → API“).
+      Speichere die Datei danach und lade sie neu.`;
+  } else if(STARTUP_ERROR === 'invalid'){
+    msg = `Die eingetragene <code>SUPABASE_URL</code> oder der <code>SUPABASE_ANON_KEY</code> sehen ungültig aus.
+      Die URL sollte genau so aussehen: <code>https://deinprojekt.supabase.co</code> (kein Schrägstrich am Ende, keine Anführungszeichen).
+      Der Key ist eine lange Zeichenkette (meist beginnend mit <code>eyJ</code>). Prüfe, ob URL und Key evtl. vertauscht sind.`;
+  } else {
+    msg = `Die Supabase-Bibliothek konnte nicht geladen werden. Das passiert meist, wenn ein Werbeblocker oder eine
+      Browser-Erweiterung das Laden von <code>cdn.jsdelivr.net</code> verhindert, oder wenn gerade keine Internetverbindung besteht.
+      Lade die Seite neu, und probiere notfalls einen anderen Browser oder das Deaktivieren von Werbeblockern für diese Seite.`;
+  }
   return `
     <div class="panel">
       <h2 class="section-title">Einrichtung nötig</h2>
-      <div class="setup-notice">
-        Trage im Quelltext dieser Seite ganz oben im <code>&lt;script&gt;</code>-Bereich deine <code>SUPABASE_URL</code> und
-        deinen <code>SUPABASE_ANON_KEY</code> ein (zu finden in deinem Supabase-Projekt unter „Project Settings → API“).
-        Speichere die Datei danach und lade sie neu.
-      </div>
+      <div class="setup-notice">${msg}</div>
     </div>
   `;
 }
@@ -774,11 +668,9 @@ function renderAddTab(){
           <label class="field-label">Vokabel (Grundform) <span class="req">*</span></label>
           <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen">
           ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
-          <div class="field-hint" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div class="field-hint">
             <a class="navigium-link" id="fragCaesarLink" href="${fragCaesarUrl(latinVal)}" target="_blank" rel="noopener">Bei Frag-Caesar nachschlagen ↗</a>
-            <button type="button" class="btn secondary small" id="autoFillBtn" ${(!latinVal.trim() || state.autoFillStatus==='loading' || type==='other')?'disabled':''}>${state.autoFillStatus==='loading' ? 'Lädt…' : '⚡ Formen automatisch ausfüllen'}</button>
           </div>
-          ${state.autoFillMessage ? `<div class="${state.autoFillStatus==='error'?'field-error-msg':'field-notice-msg'}">${escapeHtml(state.autoFillMessage)}</div>` : ''}
         </div>
         <div class="field">
           <label class="field-label">Wortart</label>
@@ -838,37 +730,6 @@ function bindAddTabEvents(){
   document.getElementById('latinInput').addEventListener('input', e=>{
     state.draftLatin = e.target.value;
     document.getElementById('fragCaesarLink').href = fragCaesarUrl(e.target.value);
-  });
-
-  const autoFillBtn = document.getElementById('autoFillBtn');
-  if(autoFillBtn) autoFillBtn.addEventListener('click', async ()=>{
-    const word = (state.draftLatin||'').trim();
-    if(!word || state.draftType === 'other') return;
-    state.autoFillStatus = 'loading';
-    state.autoFillMessage = '';
-    render();
-    try{
-      const result = await fetchFragCaesarForms(word, state.draftType);
-      let filledCount = 0;
-      Object.keys(result.forms||{}).forEach(k=>{
-        if(result.forms[k]){
-          const val = (k==='genus') ? normalizeGenus(result.forms[k]) : result.forms[k];
-          if(val){ state.draftForms[k] = val; filledCount++; }
-        }
-      });
-      if(result.meanings && result.meanings.length){
-        state.meaningsDraft = result.meanings.slice(0, 6);
-      }
-      state.autoFillStatus = filledCount > 0 ? 'success' : 'error';
-      state.autoFillMessage = filledCount > 0
-        ? 'Formen automatisch übernommen — bitte kurz prüfen, bevor du speicherst.'
-        : 'Es konnten keine Formen automatisch erkannt werden. Bitte manuell eintragen oder den Link oben nutzen.';
-    }catch(err){
-      console.error(err);
-      state.autoFillStatus = 'error';
-      state.autoFillMessage = 'Automatisches Abrufen fehlgeschlagen (' + err.message + '). Bitte manuell eintragen oder den Link oben nutzen.';
-    }
-    render();
   });
 
   document.querySelectorAll('#typeSegmented button').forEach(btn=>{
@@ -1440,27 +1301,51 @@ document.querySelectorAll('nav.tabs button').forEach(b=> b.addEventListener('cli
 
 /* ===================== INIT ===================== */
 (async function init(){
-  if(CONFIG_MISSING){ render(); return; }
+  if(STARTUP_ERROR || !sbClient){ render(); return; }
+  try{
+    const { data: { session } } = await sbClient.auth.getSession();
+    state.user = session ? session.user : null;
+    if(state.user) await loadPool();
+    render();
 
-  const { data: { session } } = await sbClient.auth.getSession();
-  state.user = session ? session.user : null;
-  if(state.user) await loadPool();
-  render();
-
-  sbClient.auth.onAuthStateChange(async (event, session) => {
-    const newUser = session ? session.user : null;
-    const wasLoggedIn = !!state.user;
-    state.user = newUser;
-    if(newUser && !wasLoggedIn){
-      await loadPool();
-      state.activeTab = 'add';
-      render();
-    } else if(!newUser && wasLoggedIn){
-      state.pool = []; state.folders = [];
-      render();
-    }
-  });
+    sbClient.auth.onAuthStateChange(async (event, session) => {
+      const newUser = session ? session.user : null;
+      const wasLoggedIn = !!state.user;
+      state.user = newUser;
+      if(newUser && !wasLoggedIn){
+        await loadPool();
+        state.activeTab = 'add';
+        render();
+      } else if(!newUser && wasLoggedIn){
+        state.pool = []; state.folders = [];
+        render();
+      }
+    });
+  }catch(e){
+    console.error('Startfehler:', e);
+    STARTUP_ERROR = 'sdk';
+    render();
+  }
 })();
+</script>
+<script>
+// Letzter Sicherheitsnetz: falls das Hauptskript aus einem unvorhergesehenen Grund
+// abbricht (z. B. weil ein Werbeblocker das Laden von cdn.jsdelivr.net verhindert
+// und der Fehler nicht im try/catch oben landet), zeigt dies nach kurzer Wartezeit
+// wenigstens eine erklärende Meldung statt einer leeren Seite.
+setTimeout(function(){
+  var nav = document.getElementById('mainNav');
+  var content = document.getElementById('content');
+  var stillBlank = content && content.innerHTML.trim() === '' && (!nav || nav.style.display === 'none' || nav.style.display === '');
+  if(stillBlank){
+    content.innerHTML =
+      '<div class="panel"><h2 class="section-title">Es ist ein unerwarteter Fehler aufgetreten</h2>' +
+      '<div class="setup-notice">Die Seite konnte nicht vollständig starten. Das liegt meist an einem Werbeblocker oder einer ' +
+      'Browser-Erweiterung, die das Laden von <code>cdn.jsdelivr.net</code> (die Supabase-Bibliothek) verhindert, oder an ' +
+      'fehlender Internetverbindung. Lade die Seite neu, deaktiviere ggf. Werbeblocker für diese Seite, oder öffne die ' +
+      'Browser-Konsole (F12) für Details und teile die Fehlermeldung mit.</div></div>';
+  }
+}, 4000);
 </script>
 </body>
 </html>
