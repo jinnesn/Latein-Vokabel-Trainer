@@ -155,6 +155,15 @@ input.field-error{ border-color:var(--error); background:var(--error-tint); }
 
 .pool-item.compact{ padding:6px 10px; font-size:13px; }
 .pool-checkbox{ flex-shrink:0; width:16px; height:16px; accent-color:var(--accent); }
+.dict-suggestions{ margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+.dict-suggestion-item{
+  display:flex; align-items:center; gap:10px; text-align:left; width:100%;
+  padding:8px 10px; border:1px solid var(--card-edge); background:#fffdf7; border-radius:6px; font-size:13px; color:var(--ink);
+}
+.dict-suggestion-item:hover{ background:var(--accent-tint); border-color:var(--accent); }
+.dict-suggestion-item .dsi-word{ font-weight:600; color:var(--accent-dark); min-width:90px; }
+.dict-suggestion-item .dsi-type{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; text-transform:uppercase; color:var(--gold); flex-shrink:0; }
+.dict-suggestion-item .dsi-meaning{ color:var(--ink-faint); flex:1; text-align:left; }
 .select-all-row{ font-size:12.5px; color:var(--ink-soft); margin:2px 0 10px; }
 .select-all-row label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
 .bulk-bar{
@@ -276,6 +285,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
    ===================================================================== */
 const SUPABASE_URL = 'https://cmggdraktkijfmptlynx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtZ2dkcmFrdGtpamZtcHRseW54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzYzMDYsImV4cCI6MjA5OTk1MjMwNn0.VNPghMV6h8qHASpt-bpm_kC_dLP_yVkPFZkMzX5s8Nw';
+  
 /* ===================================================================== */
 
 const RAW_URL = SUPABASE_URL.trim().replace(/^['"]+|['"]+$/g, '');
@@ -319,6 +329,8 @@ const state = {
   poolSort: 'latin',
   poolSelected: {},
   poolSelectMode: false,
+  dictSuggestions: [],
+  dictSearchTimer: null,
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
@@ -378,6 +390,29 @@ async function deleteFolderRow(id){
   if(error) throw error;
 }
 
+async function loadDictionaryCount(){
+  const { count, error } = await sbClient.from('dictionary').select('*', { count: 'exact', head: true });
+  if(error){ console.error(error); return 0; }
+  return count || 0;
+}
+async function insertDictionaryRows(rows){
+  for(let i=0; i<rows.length; i+=200){
+    const chunk = rows.slice(i, i+200).map(r => ({ type: r.type, latin: r.latin, forms: r.forms, meanings: r.meanings }));
+    const { error } = await sbClient.from('dictionary').insert(chunk);
+    if(error) throw error;
+  }
+}
+async function clearDictionary(){
+  const { error } = await sbClient.from('dictionary').delete().not('id', 'is', null);
+  if(error) throw error;
+}
+async function searchDictionary(prefix){
+  if(!prefix || prefix.trim().length < 2) return [];
+  const { data, error } = await sbClient.from('dictionary').select('*').ilike('latin', prefix.trim() + '%').order('latin').limit(8);
+  if(error){ console.error(error); return []; }
+  return data.map(r => ({ type: r.type, latin: r.latin, forms: r.forms || {}, meanings: r.meanings || [] }));
+}
+
 /* ===================== HELPERS ===================== */
 function normalize(s){
   return (s || '').toString().toLowerCase()
@@ -399,6 +434,67 @@ function fragCaesarUrl(word){ return 'https://www.frag-caesar.de/lateinwoerterbu
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function folderName(id){ if(!id) return null; const f = state.folders.find(x=>x.id===id); return f ? f.name : null; }
 function poolByFolder(folderId){ if(!folderId) return state.pool; return state.pool.filter(v => (v.folderId||null) === folderId); }
+
+/* ---- CSV parsing for the dictionary import ---- */
+function parseCsv(text){
+  const rows = [];
+  let i = 0, field = '', row = [], inQuotes = false;
+  const pushField = () => { row.push(field); field = ''; };
+  const pushRow = () => { pushField(); rows.push(row); row = []; };
+  while(i < text.length){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if(c === '"'){ inQuotes = true; i++; continue; }
+      if(c === ','){ pushField(); i++; continue; }
+      if(c === '\r'){ i++; continue; }
+      if(c === '\n'){ pushRow(); i++; continue; }
+      field += c; i++; continue;
+    }
+  }
+  if(field.length || row.length) pushRow();
+  return rows.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ''));
+}
+
+function csvToDictionaryRows(text){
+  const rows = parseCsv(text);
+  if(rows.length < 2) return [];
+  const header = rows[0].map(h => h.trim().toLowerCase());
+  const idx = name => header.indexOf(name);
+  const iWortart = idx('wortart'), iLatein = idx('latein'), iPraesens = idx('praesens'),
+        iPerfekt = idx('perfekt'), iPpp = idx('ppp'), iGenitiv = idx('genitiv'), iGenus = idx('genus'),
+        iNomF = idx('nomsgf'), iNomN = idx('nomsgn'), iBedeutungen = idx('bedeutungen');
+  const typeMap = { verb:'verb', substantiv:'noun', nomen:'noun', adjektiv:'adjective', sonstiges:'other' };
+  const out = [];
+  for(let r = 1; r < rows.length; r++){
+    const row = rows[r];
+    if(!row || row.every(c => !c || !c.trim())) continue;
+    const latin = ((iLatein > -1 ? row[iLatein] : '') || '').trim();
+    if(!latin) continue;
+    const wortartRaw = ((iWortart > -1 ? row[iWortart] : '') || '').trim().toLowerCase();
+    const type = typeMap[wortartRaw] || 'other';
+    const forms = {};
+    if(type === 'verb'){
+      if(iPraesens > -1) forms.praesens = (row[iPraesens]||'').trim();
+      if(iPerfekt > -1) forms.perfekt = (row[iPerfekt]||'').trim();
+      if(iPpp > -1) forms.ppp = (row[iPpp]||'').trim();
+    } else if(type === 'noun'){
+      if(iGenitiv > -1) forms.genitiv = (row[iGenitiv]||'').trim();
+      if(iGenus > -1){ const g = (row[iGenus]||'').trim(); if(g) forms.genus = normalizeGenus(g); }
+    } else if(type === 'adjective'){
+      if(iNomF > -1) forms.nomF = (row[iNomF]||'').trim();
+      if(iNomN > -1) forms.nomN = (row[iNomN]||'').trim();
+    }
+    const meanings = iBedeutungen > -1 ? (row[iBedeutungen]||'').split(';').map(m=>m.trim()).filter(Boolean) : [];
+    out.push({ type, latin, forms, meanings });
+  }
+  return out;
+}
 
 function translateAuthError(msg){
   if(!msg) return 'Unbekannter Fehler.';
@@ -424,6 +520,34 @@ function formFieldsFor(type){
     {key:'nomN', label:'Nominativ Sg. Neutrum', required:true}
   ];
   return [];
+}
+
+function renderDictSuggestionsInto(results){
+  const el = document.getElementById('dictSuggestions');
+  if(!el) return;
+  state.dictSuggestions = results;
+  if(!results.length){ el.innerHTML = ''; return; }
+  el.innerHTML = results.map((r,i)=>`
+    <button type="button" class="dict-suggestion-item" data-suggest-idx="${i}">
+      <span class="dsi-word">${escapeHtml(r.latin)}</span>
+      <span class="dsi-type">${TYPE_LABELS[r.type]}</span>
+      <span class="dsi-meaning">${escapeHtml(r.meanings.slice(0,2).join(', '))}</span>
+    </button>
+  `).join('');
+  el.querySelectorAll('[data-suggest-idx]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      applyDictSuggestion(state.dictSuggestions[parseInt(btn.dataset.suggestIdx,10)]);
+    });
+  });
+}
+function applyDictSuggestion(entry){
+  if(!entry) return;
+  state.draftLatin = entry.latin;
+  state.draftType = entry.type;
+  state.draftForms = Object.assign({}, entry.forms);
+  if(entry.meanings && entry.meanings.length) state.meaningsDraft = entry.meanings.slice(0,6);
+  state.dictSuggestions = [];
+  render();
 }
 
 function resetDraft(){
@@ -676,6 +800,7 @@ function renderAddTab(){
           <div class="field-hint">
             <a class="navigium-link" id="fragCaesarLink" href="${fragCaesarUrl(latinVal)}" target="_blank" rel="noopener">Bei Frag-Caesar nachschlagen ↗</a>
           </div>
+          <div class="dict-suggestions" id="dictSuggestions"></div>
         </div>
         <div class="field">
           <label class="field-label">Wortart</label>
@@ -735,6 +860,17 @@ function bindAddTabEvents(){
   document.getElementById('latinInput').addEventListener('input', e=>{
     state.draftLatin = e.target.value;
     document.getElementById('fragCaesarLink').href = fragCaesarUrl(e.target.value);
+    clearTimeout(state.dictSearchTimer);
+    const word = e.target.value.trim();
+    if(word.length < 2){ renderDictSuggestionsInto([]); return; }
+    state.dictSearchTimer = setTimeout(async ()=>{
+      const results = await searchDictionary(word);
+      // only show results if the user hasn't kept typing/changed the word since
+      if((state.draftLatin||'').trim() === word) renderDictSuggestionsInto(results);
+    }, 250);
+  });
+  document.getElementById('latinInput').addEventListener('blur', ()=>{
+    setTimeout(()=>{ renderDictSuggestionsInto([]); }, 150);
   });
 
   document.querySelectorAll('#typeSegmented button').forEach(btn=>{
@@ -915,6 +1051,21 @@ function renderPoolTab(){
         `).join('') : '<span class="empty-note">Noch keine Ordner angelegt.</span>'}
       </div>
     </div>
+
+    <div class="panel">
+      <h2 class="section-title">Wörterbuch für Formen-Vorschläge</h2>
+      <div class="field-hint" style="margin-bottom:12px;">
+        Trage Vokabeln mit ihren Formen in eine Tabelle ein (Vorlage zum Download von Claude) und lade sie hier hoch.
+        Beim Hinzufügen neuer Vokabeln schlägt dir die App dann passende Einträge automatisch vor, während du tippst.
+      </div>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <input type="file" id="dictFileInput" accept=".csv">
+        <button type="button" class="btn small" id="dictImportBtn">Importieren</button>
+      </div>
+      <div id="dictImportMsg"></div>
+      <div class="field-hint" id="dictCount" style="margin-top:10px;">Lade Anzahl…</div>
+      <button type="button" class="btn secondary small" id="dictClearBtn" style="margin-top:10px;">Wörterbuch leeren</button>
+    </div>
   `;
 }
 
@@ -924,6 +1075,44 @@ function bindPoolTabEvents(){
     state.poolSelectMode = !state.poolSelectMode;
     if(!state.poolSelectMode) state.poolSelected = {};
     render();
+  });
+
+  loadDictionaryCount().then(count=>{
+    const el = document.getElementById('dictCount');
+    if(el) el.textContent = count + ' Einträge im Wörterbuch';
+  });
+  const dictImportBtn = document.getElementById('dictImportBtn');
+  if(dictImportBtn) dictImportBtn.addEventListener('click', async ()=>{
+    const fileInput = document.getElementById('dictFileInput');
+    const msgEl = document.getElementById('dictImportMsg');
+    const file = fileInput.files[0];
+    if(!file){ msgEl.innerHTML = '<div class="field-error-msg">Bitte zuerst eine CSV-Datei auswählen.</div>'; return; }
+    msgEl.innerHTML = '<div class="field-hint">Importiere…</div>';
+    try{
+      const text = await file.text();
+      const rows = csvToDictionaryRows(text);
+      if(rows.length === 0){
+        msgEl.innerHTML = '<div class="field-error-msg">Keine gültigen Zeilen gefunden. Prüfe das Format anhand der Vorlage.</div>';
+        return;
+      }
+      await insertDictionaryRows(rows);
+      msgEl.innerHTML = `<div class="field-notice-msg">${rows.length} Einträge importiert.</div>`;
+      const countEl = document.getElementById('dictCount');
+      if(countEl){ const c = await loadDictionaryCount(); countEl.textContent = c + ' Einträge im Wörterbuch'; }
+      fileInput.value = '';
+    }catch(err){
+      console.error(err);
+      msgEl.innerHTML = `<div class="field-error-msg">Import fehlgeschlagen: ${escapeHtml(err.message)}</div>`;
+    }
+  });
+  const dictClearBtn = document.getElementById('dictClearBtn');
+  if(dictClearBtn) dictClearBtn.addEventListener('click', async ()=>{
+    if(!confirm('Wirklich alle Wörterbuch-Einträge löschen? Deine eigentlichen Vokabeln im Pool sind davon nicht betroffen.')) return;
+    try{
+      await clearDictionary();
+      const countEl = document.getElementById('dictCount');
+      if(countEl) countEl.textContent = '0 Einträge im Wörterbuch';
+    }catch(err){ console.error(err); }
   });
 
   const poolSearch = document.getElementById('poolSearch');
