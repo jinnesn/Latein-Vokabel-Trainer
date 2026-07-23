@@ -1,19 +1,19 @@
-Wortart;Latein;Praesens;Perfekt;PPP;Genitiv;Genus;NomSgF;NomSgN;Bedeutungen
-Verb;amare;amo;amavi;amatum;;;;;"lieben;mögen"
-Substantiv;puella;;;;puellae;f;;;"Mädchen;Dirne"
-Adjektiv;bonus;;;;;;bona;bonum;"gut;tüchtig"
+wortart;latein;praesens;perfekt;ppp;genitiv;genus;nomsgf;nomdgn;bedeutungen
+Verb;amare;amo;amavi;amatum;;;;;"lieben;mÃ¶gen"
+Substantiv;puella;;;;puellae;f;;;"MÃ¤dchen;Dirne"
+Adjektiv;bonus;;;;;;bona;bonum;"gut;tÃ¼chtig"
 Sonstiges;tamen;;;;;;;;"dennoch;jedoch"
 Sonstiges;impune;;;;;;;;"ungestraft;oohne Schaden"
-Verb;gerere;gero;gessi;gestum;;;;;"tragen;ausführen"
+Verb;gerere;gero;gessi;gestum;;;;;"tragen;ausfÃ¼hren"
 Verb;natare;nato;natavi;natatum;;;;;schwimmen
-Verb;attingere;attingo;attigi;attactum;;;;;"berühren;erreichen"
-Substantiv;decor;;;;decoris;m;;;"Anstand;Schönheit;Schmuck"
+Verb;attingere;attingo;attigi;attactum;;;;;"berÃ¼hren;erreichen"
+Substantiv;decor;;;;decoris;m;;;"Anstand;SchÃ¶nheit;Schmuck"
 Verb;quaerere;quaero;quaesivi;quesitum;;;;;"suchen;fragen"
-Verb;tangere;tango;tetigi;tactum;;;;;"berühren;ergreifen"
+Verb;tangere;tango;tetigi;tactum;;;;;"berÃ¼hren;ergreifen"
 Adjektiv;tristis;;;;;;tristis;triste;"traurig;schmerzlich"
 Verb;contemnere;contemno ;contempsi;contemptum;;;;;verachten
-Substantiv;latro;;;;latronis;m;;;Jäger
-potens;;;;;;;potens ;potens;"mächtig;stark"
+Substantiv;latro;;;;latronis;m;;;JÃ¤ger
+potens;;;;;;;potens ;potens;"mÃ¤chtig;stark"
 Adjektiv;incolumis;;;;;;incolumis;incolume;unversehrt
 Sonstiges;longe;;;;;;;;bei weitem
 Verb;queri;queror;questus sum;questus;;;;;"sich beschweren;sich beklagen"
