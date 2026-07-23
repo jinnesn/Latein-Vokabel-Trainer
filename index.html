@@ -285,7 +285,6 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
    ===================================================================== */
 const SUPABASE_URL = 'https://cmggdraktkijfmptlynx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtZ2dkcmFrdGtpamZtcHRseW54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzYzMDYsImV4cCI6MjA5OTk1MjMwNn0.VNPghMV6h8qHASpt-bpm_kC_dLP_yVkPFZkMzX5s8Nw';
-  
 /* ===================================================================== */
 
 const RAW_URL = SUPABASE_URL.trim().replace(/^['"]+|['"]+$/g, '');
@@ -330,7 +329,6 @@ const state = {
   poolSelected: {},
   poolSelectMode: false,
   dictSuggestions: [],
-  dictSearchTimer: null,
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
@@ -390,27 +388,31 @@ async function deleteFolderRow(id){
   if(error) throw error;
 }
 
-async function loadDictionaryCount(){
-  const { count, error } = await sbClient.from('dictionary').select('*', { count: 'exact', head: true });
-  if(error){ console.error(error); return 0; }
-  return count || 0;
-}
-async function insertDictionaryRows(rows){
-  for(let i=0; i<rows.length; i+=200){
-    const chunk = rows.slice(i, i+200).map(r => ({ type: r.type, latin: r.latin, forms: r.forms, meanings: r.meanings }));
-    const { error } = await sbClient.from('dictionary').insert(chunk);
-    if(error) throw error;
+/* ---- Shared dictionary: a static CSV file living next to index.html on GitHub Pages.
+   Everyone who visits the site loads the same file — no per-user upload needed.
+   To update it, just edit dictionary.csv in the GitHub repo (e.g. via GitHub's
+   web editor) and commit; every visitor gets the new version on their next load. */
+let DICTIONARY_CACHE = null;
+let DICTIONARY_LOAD_ERROR = false;
+async function loadDictionary(){
+  if(DICTIONARY_CACHE) return DICTIONARY_CACHE;
+  try{
+    const res = await fetch('dictionary.csv', { cache: 'no-cache' });
+    if(!res.ok){ DICTIONARY_CACHE = []; DICTIONARY_LOAD_ERROR = true; return DICTIONARY_CACHE; }
+    const text = await res.text();
+    DICTIONARY_CACHE = csvToDictionaryRows(text);
+  }catch(e){
+    console.error('Wörterbuch konnte nicht geladen werden:', e);
+    DICTIONARY_CACHE = [];
+    DICTIONARY_LOAD_ERROR = true;
   }
+  if(state.activeTab === 'pool') render();
+  return DICTIONARY_CACHE;
 }
-async function clearDictionary(){
-  const { error } = await sbClient.from('dictionary').delete().not('id', 'is', null);
-  if(error) throw error;
-}
-async function searchDictionary(prefix){
-  if(!prefix || prefix.trim().length < 2) return [];
-  const { data, error } = await sbClient.from('dictionary').select('*').ilike('latin', prefix.trim() + '%').order('latin').limit(8);
-  if(error){ console.error(error); return []; }
-  return data.map(r => ({ type: r.type, latin: r.latin, forms: r.forms || {}, meanings: r.meanings || [] }));
+function searchDictionaryLocal(prefix){
+  const p = (prefix||'').trim().toLowerCase();
+  if(!p || !DICTIONARY_CACHE) return [];
+  return DICTIONARY_CACHE.filter(r => r.latin.toLowerCase().startsWith(p)).slice(0, 8);
 }
 
 /* ===================== HELPERS ===================== */
@@ -520,6 +522,12 @@ function formFieldsFor(type){
     {key:'nomN', label:'Nominativ Sg. Neutrum', required:true}
   ];
   return [];
+}
+
+function dictionaryStatusText(){
+  if(DICTIONARY_CACHE === null) return 'Wörterbuch wird geladen…';
+  if(DICTIONARY_LOAD_ERROR) return 'Konnte dictionary.csv nicht laden. Liegt die Datei im selben Ordner wie index.html im GitHub-Repo?';
+  return DICTIONARY_CACHE.length + ' Einträge geladen — automatisch für alle Besucher der Seite verfügbar. Zum Aktualisieren einfach dictionary.csv im GitHub-Repo bearbeiten und committen.';
 }
 
 function renderDictSuggestionsInto(results){
@@ -860,14 +868,8 @@ function bindAddTabEvents(){
   document.getElementById('latinInput').addEventListener('input', e=>{
     state.draftLatin = e.target.value;
     document.getElementById('fragCaesarLink').href = fragCaesarUrl(e.target.value);
-    clearTimeout(state.dictSearchTimer);
     const word = e.target.value.trim();
-    if(word.length < 2){ renderDictSuggestionsInto([]); return; }
-    state.dictSearchTimer = setTimeout(async ()=>{
-      const results = await searchDictionary(word);
-      // only show results if the user hasn't kept typing/changed the word since
-      if((state.draftLatin||'').trim() === word) renderDictSuggestionsInto(results);
-    }, 250);
+    renderDictSuggestionsInto(word.length < 2 ? [] : searchDictionaryLocal(word));
   });
   document.getElementById('latinInput').addEventListener('blur', ()=>{
     setTimeout(()=>{ renderDictSuggestionsInto([]); }, 150);
@@ -1054,17 +1056,7 @@ function renderPoolTab(){
 
     <div class="panel">
       <h2 class="section-title">Wörterbuch für Formen-Vorschläge</h2>
-      <div class="field-hint" style="margin-bottom:12px;">
-        Trage Vokabeln mit ihren Formen in eine Tabelle ein (Vorlage zum Download von Claude) und lade sie hier hoch.
-        Beim Hinzufügen neuer Vokabeln schlägt dir die App dann passende Einträge automatisch vor, während du tippst.
-      </div>
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <input type="file" id="dictFileInput" accept=".csv">
-        <button type="button" class="btn small" id="dictImportBtn">Importieren</button>
-      </div>
-      <div id="dictImportMsg"></div>
-      <div class="field-hint" id="dictCount" style="margin-top:10px;">Lade Anzahl…</div>
-      <button type="button" class="btn secondary small" id="dictClearBtn" style="margin-top:10px;">Wörterbuch leeren</button>
+      <div class="field-hint" id="dictStatus">${dictionaryStatusText()}</div>
     </div>
   `;
 }
@@ -1075,44 +1067,6 @@ function bindPoolTabEvents(){
     state.poolSelectMode = !state.poolSelectMode;
     if(!state.poolSelectMode) state.poolSelected = {};
     render();
-  });
-
-  loadDictionaryCount().then(count=>{
-    const el = document.getElementById('dictCount');
-    if(el) el.textContent = count + ' Einträge im Wörterbuch';
-  });
-  const dictImportBtn = document.getElementById('dictImportBtn');
-  if(dictImportBtn) dictImportBtn.addEventListener('click', async ()=>{
-    const fileInput = document.getElementById('dictFileInput');
-    const msgEl = document.getElementById('dictImportMsg');
-    const file = fileInput.files[0];
-    if(!file){ msgEl.innerHTML = '<div class="field-error-msg">Bitte zuerst eine CSV-Datei auswählen.</div>'; return; }
-    msgEl.innerHTML = '<div class="field-hint">Importiere…</div>';
-    try{
-      const text = await file.text();
-      const rows = csvToDictionaryRows(text);
-      if(rows.length === 0){
-        msgEl.innerHTML = '<div class="field-error-msg">Keine gültigen Zeilen gefunden. Prüfe das Format anhand der Vorlage.</div>';
-        return;
-      }
-      await insertDictionaryRows(rows);
-      msgEl.innerHTML = `<div class="field-notice-msg">${rows.length} Einträge importiert.</div>`;
-      const countEl = document.getElementById('dictCount');
-      if(countEl){ const c = await loadDictionaryCount(); countEl.textContent = c + ' Einträge im Wörterbuch'; }
-      fileInput.value = '';
-    }catch(err){
-      console.error(err);
-      msgEl.innerHTML = `<div class="field-error-msg">Import fehlgeschlagen: ${escapeHtml(err.message)}</div>`;
-    }
-  });
-  const dictClearBtn = document.getElementById('dictClearBtn');
-  if(dictClearBtn) dictClearBtn.addEventListener('click', async ()=>{
-    if(!confirm('Wirklich alle Wörterbuch-Einträge löschen? Deine eigentlichen Vokabeln im Pool sind davon nicht betroffen.')) return;
-    try{
-      await clearDictionary();
-      const countEl = document.getElementById('dictCount');
-      if(countEl) countEl.textContent = '0 Einträge im Wörterbuch';
-    }catch(err){ console.error(err); }
   });
 
   const poolSearch = document.getElementById('poolSearch');
@@ -1507,6 +1461,7 @@ document.querySelectorAll('nav.tabs button').forEach(b=> b.addEventListener('cli
 
 /* ===================== INIT ===================== */
 (async function init(){
+  loadDictionary(); // fire-and-forget: static file, independent of Supabase/auth
   if(STARTUP_ERROR || !sbClient){ render(); return; }
   try{
     const { data: { session } } = await sbClient.auth.getSession();
