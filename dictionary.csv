@@ -1,13 +1,13 @@
 wortart;latein;praesens;perfekt;ppp;genitiv;genus;nomsgf;nomsgn;bedeutungen
 Substantiv;agnus;;;;agni;m;;;Lamm
-Sonstiges;ait;;;;;;;;er/sie/es sagt€
-Verb;amare;amo;amavi;amatum;;;;;"lieben;mögen"
+Sonstiges;ait;;;;;;;;er/sie/es sagtâ‚¬
+Verb;amare;amo;amavi;amatum;;;;;"lieben;mÃ¶gen"
 Verb;amittere;amitto;amisi;amissum;;;;;"loslassen;verlieren"
 Substantiv;asinus;;;;asini;m;;;Esel
-Verb;attingere;attingo;attigi;attactum;;;;;"berühren;erreichen"
+Verb;attingere;attingo;attigi;attactum;;;;;"berÃ¼hren;erreichen"
 Substantiv;avis;;;;avis;f;;;Vogel
-Adjektiv;bonus;;;;;;bona;bonum;"gut;tüchtig"
-Substantiv;calamitas;;;;calamitatis;f;;;"Unglück;Niederlage"
+Adjektiv;bonus;;;;;;bona;bonum;"gut;tÃ¼chtig"
+Substantiv;calamitas;;;;calamitatis;f;;;"UnglÃ¼ck;Niederlage"
 Substantiv;canis;;;;canis;m;;;Hund
 Substantiv;collum;;;;colli;n;;;Hals
 Verb;conspicere;conspicio;conspexi;conspectum;;;;;erblicken
@@ -16,8 +16,8 @@ Adjektiv;contentus;;;;;;contenta;contentum;zufrieden
 Verb;corripere;corripio;corripui;correptum;;;;;"ergreifen;packen"
 Substantiv;corvus;;;;corvi;m;;;Rabe
 Verb;credere;credo;credidi;creditum;;;;;"glauben;anvertrauen"
-Verb;decipere;decipio;decepi;deceptum;;;;;"täuschen;enttäuschen"
-Substantiv;decor;;;;decoris;m;;;"Anstand;Schönheit;Schmuck"
+Verb;decipere;decipio;decepi;deceptum;;;;;"tÃ¤uschen;enttÃ¤uschen"
+Substantiv;decor;;;;decoris;m;;;"Anstand;SchÃ¶nheit;Schmuck"
 Substantiv;dens;;;;dentis;m;;;Zahn
 Verb;devorare;devoro;devoravi;devoratum;;;;;verschlingen
 Substantiv;dolus;;;;doli;m;;;"List;Hinterlist"
@@ -30,21 +30,21 @@ Verb;ferre ;fero;tuli;latum;;;;;"tragen;bringen"
 Verb;fingere;fingo;finxi;fictum;;;;;"erfinden;erdichten"
 Substantiv;flumen;;;;fluminis;n;;;Fluss
 Substantiv;genus;;;;generis;n;;;"Geschlecht;Gattung;Art"
-Verb;gerere;gero;gessi;gestum;;;;;"tragen;ausführen"
-Verb;haerere;heareo;haesi;haesurus;;;;;"hängen;stecken bleiben"
+Verb;gerere;gero;gessi;gestum;;;;;"tragen;ausfÃ¼hren"
+Verb;haerere;heareo;haesi;haesurus;;;;;"hÃ¤ngen;stecken bleiben"
 Verb;imitari;imitor;imitatus sum;;;;;;nachahmen
 Sonstiges;impune;;;;;;;;"ungestraft;ohne Schaden"
 Verb;incipere;incipio;coepi;coeptum;;;;;"anfangen;beginnen"
 Adjektiv;incolumis;;;;;;incolumis;incolume;unversehrt
-Adjektiv;indignus;;;;;;indigna;indignum;unwürdig
+Adjektiv;indignus;;;;;;indigna;indignum;unwÃ¼rdig
 Adjektiv;inferior;;;;;;inferior;inferius;"tiefer;niedriger"
 Adjektiv;ingratus;;;;;;ingrata;ingratum;undankbar
 Adjektiv;iniustus;;;;;;iniusta;iniustum;ungerecht
 Verb;interrogare;interrogo;interrogavi;interrogatum;;;;;fragen
 Substantiv;invidia;;;;invidiae;f;;;Neid
-Substantiv;latro;;;;latronis;m;;;Jäger
-Adjektiv;liquidus;;;;;;liquida;liquidum;flüssig 
-Substantiv;liquor;;;;liquoris;m;;;"Flüssigkeit;Wasser"
+Substantiv;latro;;;;latronis;m;;;JÃ¤ger
+Adjektiv;liquidus;;;;;;liquida;liquidum;flÃ¼ssig 
+Substantiv;liquor;;;;liquoris;m;;;"FlÃ¼ssigkeit;Wasser"
 Sonstiges;longe;;;;;;;;bei weitem
 Verb;loqui;loquor;locutus sum;;;;;;"sagen;sprechen"
 Substantiv;lupus;;;;lupi;m;;;Wolf
@@ -56,16 +56,16 @@ Adjektiv;natus;;;;;;nata;natum;geboren
 Substantiv;nisus;;;;nisus;m;;;Anstrengung
 Verb;nocere;noceo;nocui;nocitum;;;;;schaden
 Sonstiges;nondum;;;;;;;;noch nicht
-Verb;opprimere;opprimo;oppressi;oppressum;;;;;unterdrücken
+Verb;opprimere;opprimo;oppressi;oppressum;;;;;unterdrÃ¼cken
 Substantiv;os;;;;ossis;n;;;Knochen
 Substantiv;pavo;;;;pavonis;m;;;Pfau
 Substantiv;pellis;;;;pellis;f;;;"Fell;Haut"
 Substantiv;penna;;;;pennae;f;;;Feder
-Adjektiv;periculosus;;;;;;periculosa;periculosum;gefährlich
-Adjektiv;potens;;;;;;potens ;potens;"mächtig;stark"
+Adjektiv;periculosus;;;;;;periculosa;periculosum;gefÃ¤hrlich
+Adjektiv;potens;;;;;;potens ;potens;"mÃ¤chtig;stark"
 Substantiv;pretium;;;;pretii;n;;;"Wert;Preis"
 Adjektiv;proprius;;;;;;propria;proprium;eigen
-Substantiv;puella;;;;puellae;f;;;"Mädchen;Dirne"
+Substantiv;puella;;;;puellae;f;;;"MÃ¤dchen;Dirne"
 Verb;quaerere;quaero;quaesivi;quesitum;;;;;"suchen;fragen"
 Verb;queri;queror;questus sum;;;;;;"sich beschweren;sich beklagen"
 Sonstiges;quondam;;;;;;;;einst
@@ -73,14 +73,14 @@ Substantiv;rana;;;;ranae;f;;;Frosch
 Substantiv;rivus;;;;rivi;m;;;Bach
 Substantiv;rostrum;;;;rostri;n;;;Schnabel
 Substantiv;sedes;;;;sedis ;f;;;Sitz
-Adjektiv;similis;;;;;;similis;simile;ähnlich
+Adjektiv;similis;;;;;;similis;simile;Ã¤hnlich
 Substantiv;simulacrum;;;;simulacri;n;;;Bild
 Substantiv;sitis;;;;sitis;f;;;Durst
 Substantiv;speculum;;;;speculi;n;;;Spiegel
 Adjektiv;stultus;;;;;;stulta;stultum;dumm
 Substantiv;superbia;;;;superbiae;f;;;"Hochmut;Stolz"
 Sonstiges;tamen;;;;;;;;"dennoch;jedoch"
-Verb;tangere;tango;tetigi;tactum;;;;;"berühren;ergreifen"
+Verb;tangere;tango;tetigi;tactum;;;;;"berÃ¼hren;ergreifen"
 Adjektiv;tristis;;;;;;tristis;triste;"traurig;schmerzlich"
 Sonstiges;tunc;;;;;;;;"da;dann;darauf"
 Substantiv;uva;;;;uvae;f;;;Weintraube
