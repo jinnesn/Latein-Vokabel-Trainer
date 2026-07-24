@@ -59,8 +59,27 @@ h1.title{
 p.subtitle{ font-style:italic; color:var(--ink-soft); margin:6px 0 0; font-size:15px; letter-spacing:0.02em; }
 .pool-stat{ margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.05em; color:var(--ink-faint); text-transform:uppercase; }
 .pool-stat b{ color:var(--accent); font-weight:600; }
-.account-bar{ display:flex; align-items:center; justify-content:center; gap:10px; margin-top:12px; font-size:12.5px; color:var(--ink-faint); }
-.account-bar button{ border:none; background:none; color:var(--accent-dark); text-decoration:underline; font-size:12.5px; }
+.account-bar{ position:absolute; top:0; right:0; }
+.profile-menu{ position:relative; }
+.profile-avatar{
+  width:34px; height:34px; border-radius:50%; border:1px solid var(--accent);
+  background:var(--accent); color:#fdf6ea; font-family:'Cinzel', serif; font-weight:700; font-size:14px;
+  display:flex; align-items:center; justify-content:center;
+}
+.profile-avatar:hover{ background:var(--accent-dark); }
+.profile-dropdown{
+  position:absolute; top:42px; right:0; z-index:20;
+  background:var(--card); border:1px solid var(--card-edge); border-radius:8px; box-shadow:var(--shadow);
+  padding:14px; min-width:220px; text-align:left;
+}
+.pd-email{ font-size:12.5px; color:var(--ink-soft); word-break:break-all; }
+.pd-divider{ border:none; border-top:1px solid var(--line); margin:10px 0; }
+.pd-item{
+  display:block; width:100%; text-align:left; background:none; border:none; padding:8px 4px;
+  font-size:13.5px; color:var(--ink); border-radius:5px;
+}
+.pd-item:hover{ background:var(--accent-tint); color:var(--accent-dark); }
+.pd-form .field{ margin-bottom:10px; }
 
 nav.tabs{ display:flex; gap:8px; border-bottom:2px solid var(--line); margin-bottom:26px; flex-wrap:wrap; }
 nav.tabs button{
@@ -311,6 +330,23 @@ const state = {
   authNotice: '',
   authBusy: false,
 
+  forgotPasswordOpen: false,
+  forgotEmail: '',
+  forgotError: '',
+  forgotNotice: '',
+  forgotBusy: false,
+
+  authView: 'normal', // 'normal' | 'recovery' (set when the user lands via a password-reset link)
+  recoveryError: '',
+  recoveryNotice: '',
+  recoveryBusy: false,
+
+  profileMenuOpen: false,
+  changePasswordOpen: false,
+  changePasswordError: '',
+  changePasswordNotice: '',
+  changePasswordBusy: false,
+
   pool: [],
   folders: [],
   activeTab: 'add',
@@ -453,7 +489,7 @@ function parseCsv(text){
       field += c; i++; continue;
     } else {
       if(c === '"'){ inQuotes = true; i++; continue; }
-      if(c === ';'){ pushField(); i++; continue; }
+      if(c === ','){ pushField(); i++; continue; }
       if(c === '\r'){ i++; continue; }
       if(c === '\n'){ pushRow(); i++; continue; }
       field += c; i++; continue;
@@ -504,7 +540,33 @@ function translateAuthError(msg){
   if(msg.includes('User already registered')) return 'Für diese E-Mail existiert bereits ein Konto — einfach anmelden.';
   if(msg.includes('Password should be at least')) return 'Das Passwort muss mindestens 6 Zeichen lang sein.';
   if(msg.includes('Unable to validate email')) return 'Diese E-Mail-Adresse scheint ungültig zu sein.';
+  if(msg.includes('New password should be different')) return 'Das neue Passwort muss sich vom alten unterscheiden.';
+  if(msg.includes('session') && msg.includes('expired')) return 'Der Link ist abgelaufen. Fordere einen neuen Link zum Zurücksetzen an.';
   return msg;
+}
+
+/* Basic format check plus a DNS lookup (via Google's public DNS-over-HTTPS API) confirming the
+   domain actually has mail servers, before we ever hand the address to Supabase. This can't
+   prove the exact mailbox exists (only Supabase's own confirmation e-mail can do that), but it
+   reliably catches typos and made-up domains. If the DNS check itself is unreachable, we don't
+   block signup over it — better to let a real user through than to lock everyone out. */
+function isPlausibleEmailFormat(email){
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+async function domainCanReceiveMail(domain){
+  try{
+    const res = await fetch('https://dns.google/resolve?name=' + encodeURIComponent(domain) + '&type=MX');
+    if(!res.ok) return true; // fail open
+    const data = await res.json();
+    if(data.Answer && data.Answer.length > 0) return true;
+    // some domains route mail via an A/AAAA record instead of MX — check as a fallback
+    const res2 = await fetch('https://dns.google/resolve?name=' + encodeURIComponent(domain) + '&type=A');
+    if(!res2.ok) return true;
+    const data2 = await res2.json();
+    return !!(data2.Answer && data2.Answer.length > 0);
+  }catch(e){
+    return true; // fail open — never block signup because a network check failed
+  }
 }
 
 function formFieldsFor(type){
@@ -576,8 +638,85 @@ function renderPoolStat(){
 function renderAccountBar(){
   const el = document.getElementById('accountBar');
   if(!state.user){ el.innerHTML=''; return; }
-  el.innerHTML = `Angemeldet als ${escapeHtml(state.user.email)} · <button id="logoutBtn">Abmelden</button>`;
-  document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+  const initial = escapeHtml((state.user.email||'?').charAt(0).toUpperCase());
+  el.innerHTML = `
+    <div class="profile-menu">
+      <button type="button" class="profile-avatar" id="profileMenuBtn" title="${escapeHtml(state.user.email)}">${initial}</button>
+      ${state.profileMenuOpen ? renderProfileDropdown() : ''}
+    </div>
+  `;
+  document.getElementById('profileMenuBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    state.profileMenuOpen = !state.profileMenuOpen;
+    if(!state.profileMenuOpen){ state.changePasswordOpen = false; state.changePasswordError=''; state.changePasswordNotice=''; }
+    render();
+  });
+  if(state.profileMenuOpen) bindProfileDropdownEvents();
+}
+
+function renderProfileDropdown(){
+  return `
+    <div class="profile-dropdown" id="profileDropdown">
+      <div class="pd-email">${escapeHtml(state.user.email)}</div>
+      <hr class="pd-divider">
+      ${!state.changePasswordOpen ? `
+        <button type="button" class="pd-item" id="openChangePassword">Passwort ändern</button>
+        <button type="button" class="pd-item" id="logoutBtn">Abmelden</button>
+      ` : `
+        <form id="changePasswordForm" class="pd-form">
+          <div class="field">
+            <label class="field-label">Neues Passwort</label>
+            <input type="password" id="newPasswordInput" required minlength="6" autocomplete="new-password">
+          </div>
+          <div class="field">
+            <label class="field-label">Bestätigen</label>
+            <input type="password" id="newPasswordConfirmInput" required minlength="6" autocomplete="new-password">
+          </div>
+          ${state.changePasswordError ? `<div class="field-error-msg">${escapeHtml(state.changePasswordError)}</div>` : ''}
+          ${state.changePasswordNotice ? `<div class="field-notice-msg">${escapeHtml(state.changePasswordNotice)}</div>` : ''}
+          <div class="btn-row" style="margin-top:10px;">
+            <button type="submit" class="btn small" ${state.changePasswordBusy?'disabled':''}>${state.changePasswordBusy?'Speichere…':'Speichern'}</button>
+            <button type="button" class="btn secondary small" id="cancelChangePassword">Abbrechen</button>
+          </div>
+        </form>
+      `}
+    </div>
+  `;
+}
+
+function bindProfileDropdownEvents(){
+  const openBtn = document.getElementById('openChangePassword');
+  if(openBtn) openBtn.addEventListener('click', ()=>{
+    state.changePasswordOpen = true; state.changePasswordError=''; state.changePasswordNotice='';
+    render();
+  });
+  const logoutBtn = document.getElementById('logoutBtn');
+  if(logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+  const cancelBtn = document.getElementById('cancelChangePassword');
+  if(cancelBtn) cancelBtn.addEventListener('click', ()=>{
+    state.changePasswordOpen = false; state.changePasswordError=''; state.changePasswordNotice='';
+    render();
+  });
+  const form = document.getElementById('changePasswordForm');
+  if(form) form.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const pw = document.getElementById('newPasswordInput').value;
+    const pwConfirm = document.getElementById('newPasswordConfirmInput').value;
+    state.changePasswordError = ''; state.changePasswordNotice = '';
+    if(pw !== pwConfirm){ state.changePasswordError = 'Die Passwörter stimmen nicht überein.'; render(); return; }
+    state.changePasswordBusy = true;
+    render();
+    try{
+      const { error } = await sbClient.auth.updateUser({ password: pw });
+      if(error) throw error;
+      state.changePasswordNotice = 'Passwort geändert.';
+      state.changePasswordOpen = false;
+    }catch(err){
+      state.changePasswordError = translateAuthError(err.message);
+    }
+    state.changePasswordBusy = false;
+    render();
+  });
 }
 
 function setActiveTab(tab){
@@ -586,6 +725,16 @@ function setActiveTab(tab){
   document.querySelectorAll('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
   render();
 }
+document.addEventListener('click', e=>{
+  if(!state.profileMenuOpen) return;
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
+  const insideMenu = path.some(node => node.classList && node.classList.contains('profile-menu'));
+  if(!insideMenu){
+    state.profileMenuOpen = false;
+    state.changePasswordOpen = false;
+    render();
+  }
+});
 document.addEventListener('keydown', e=>{
   if(state.activeTab === 'practice'){
     const card = document.getElementById('flashcard');
@@ -632,6 +781,12 @@ function render(){
     el.innerHTML = renderSetupNotice();
     return;
   }
+  if(state.authView === 'recovery'){
+    nav.style.display = 'none';
+    el.innerHTML = renderPasswordRecoveryPanel();
+    bindRecoveryEvents();
+    return;
+  }
   if(!state.user){
     nav.style.display = 'none';
     el.innerHTML = renderAuthPanel();
@@ -676,6 +831,7 @@ function renderSetupNotice(){
 
 /* ===================== AUTH ===================== */
 function renderAuthPanel(){
+  if(state.forgotPasswordOpen) return renderForgotPasswordPanel();
   const mode = state.authMode;
   return `
     <div class="panel" style="max-width:420px; margin:0 auto;">
@@ -691,11 +847,58 @@ function renderAuthPanel(){
         <div class="field">
           <label class="field-label">Passwort</label>
           <input type="password" id="authPassword" required autocomplete="${mode==='login'?'current-password':'new-password'}" minlength="6">
+          ${mode==='login' ? `<div class="field-hint"><button type="button" class="link-add" id="forgotPasswordLink" style="padding:0;">Passwort vergessen?</button></div>` : ''}
         </div>
         ${state.authError ? `<div class="field-error-msg">${escapeHtml(state.authError)}</div>` : ''}
         ${state.authNotice ? `<div class="field-notice-msg">${escapeHtml(state.authNotice)}</div>` : ''}
         <div class="btn-row">
-          <button type="submit" class="btn full" ${state.authBusy?'disabled':''}>${mode==='login' ? 'Anmelden' : 'Konto erstellen'}</button>
+          <button type="submit" class="btn full" ${state.authBusy?'disabled':''}>${state.authBusy ? 'Einen Moment…' : (mode==='login' ? 'Anmelden' : 'Konto erstellen')}</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function renderForgotPasswordPanel(){
+  return `
+    <div class="panel" style="max-width:420px; margin:0 auto;">
+      <h2 class="section-title">Passwort zurücksetzen</h2>
+      <form id="forgotForm">
+        <div class="field">
+          <label class="field-label">E-Mail</label>
+          <input type="email" id="forgotEmailInput" required autocomplete="email" value="${escapeHtml(state.forgotEmail)}">
+          <div class="field-hint">Wir schicken dir einen Link, mit dem du ein neues Passwort setzen kannst.</div>
+        </div>
+        ${state.forgotError ? `<div class="field-error-msg">${escapeHtml(state.forgotError)}</div>` : ''}
+        ${state.forgotNotice ? `<div class="field-notice-msg">${escapeHtml(state.forgotNotice)}</div>` : ''}
+        <div class="btn-row">
+          <button type="submit" class="btn full" ${state.forgotBusy?'disabled':''}>${state.forgotBusy ? 'Sende…' : 'Link senden'}</button>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="btn secondary full" id="backToLoginBtn">Zurück zur Anmeldung</button>
+        </div>
+      </form>
+    </div>
+  `;
+}
+
+function renderPasswordRecoveryPanel(){
+  return `
+    <div class="panel" style="max-width:420px; margin:0 auto;">
+      <h2 class="section-title">Neues Passwort setzen</h2>
+      <form id="recoveryForm">
+        <div class="field">
+          <label class="field-label">Neues Passwort</label>
+          <input type="password" id="recoveryPassword" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label class="field-label">Neues Passwort bestätigen</label>
+          <input type="password" id="recoveryPasswordConfirm" required minlength="6" autocomplete="new-password">
+        </div>
+        ${state.recoveryError ? `<div class="field-error-msg">${escapeHtml(state.recoveryError)}</div>` : ''}
+        ${state.recoveryNotice ? `<div class="field-notice-msg">${escapeHtml(state.recoveryNotice)}</div>` : ''}
+        <div class="btn-row">
+          <button type="submit" class="btn full" ${state.recoveryBusy?'disabled':''}>${state.recoveryBusy ? 'Speichere…' : 'Passwort speichern'}</button>
         </div>
       </form>
     </div>
@@ -703,12 +906,19 @@ function renderAuthPanel(){
 }
 
 function bindAuthEvents(){
+  if(state.forgotPasswordOpen){ bindForgotPasswordEvents(); return; }
   document.querySelectorAll('[data-auth-tab]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       state.authMode = btn.dataset.authTab;
       state.authError = ''; state.authNotice = '';
       render();
     });
+  });
+  const forgotLink = document.getElementById('forgotPasswordLink');
+  if(forgotLink) forgotLink.addEventListener('click', ()=>{
+    state.forgotPasswordOpen = true;
+    state.forgotError = ''; state.forgotNotice = '';
+    render();
   });
   document.getElementById('authForm').addEventListener('submit', async e=>{
     e.preventDefault();
@@ -721,6 +931,14 @@ function bindAuthEvents(){
         const { error } = await sbClient.auth.signInWithPassword({ email, password });
         if(error) throw error;
       } else {
+        if(!isPlausibleEmailFormat(email)){
+          throw new Error('Bitte eine gültige E-Mail-Adresse eingeben.');
+        }
+        const domain = email.split('@')[1];
+        const domainOk = await domainCanReceiveMail(domain);
+        if(!domainOk){
+          throw new Error('Für die Domain „' + domain + '" wurden keine Mailserver gefunden. Bitte die E-Mail-Adresse auf Tippfehler prüfen.');
+        }
         const { data, error } = await sbClient.auth.signUp({ email, password });
         if(error) throw error;
         if(data && data.session){
@@ -734,6 +952,54 @@ function bindAuthEvents(){
       state.authError = translateAuthError(err.message);
     }
     state.authBusy = false;
+    render();
+  });
+}
+
+function bindForgotPasswordEvents(){
+  document.getElementById('backToLoginBtn').addEventListener('click', ()=>{
+    state.forgotPasswordOpen = false;
+    state.forgotError = ''; state.forgotNotice = '';
+    render();
+  });
+  document.getElementById('forgotForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const email = document.getElementById('forgotEmailInput').value.trim();
+    state.forgotEmail = email;
+    state.forgotError = ''; state.forgotNotice = ''; state.forgotBusy = true;
+    render();
+    try{
+      const { error } = await sbClient.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+      if(error) throw error;
+      state.forgotNotice = 'Falls ein Konto mit dieser Adresse existiert, wurde eine E-Mail mit einem Link zum Zurücksetzen verschickt.';
+    }catch(err){
+      state.forgotError = translateAuthError(err.message);
+    }
+    state.forgotBusy = false;
+    render();
+  });
+}
+
+function bindRecoveryEvents(){
+  document.getElementById('recoveryForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const pw = document.getElementById('recoveryPassword').value;
+    const pwConfirm = document.getElementById('recoveryPasswordConfirm').value;
+    state.recoveryError = ''; state.recoveryNotice = '';
+    if(pw !== pwConfirm){ state.recoveryError = 'Die Passwörter stimmen nicht überein.'; render(); return; }
+    state.recoveryBusy = true;
+    render();
+    try{
+      const { error } = await sbClient.auth.updateUser({ password: pw });
+      if(error) throw error;
+      state.authView = 'normal';
+      state.recoveryError = ''; state.recoveryNotice = '';
+      state.activeTab = 'add';
+      if(state.user) await loadPool();
+    }catch(err){
+      state.recoveryError = translateAuthError(err.message);
+    }
+    state.recoveryBusy = false;
     render();
   });
 }
@@ -1470,6 +1736,12 @@ document.querySelectorAll('nav.tabs button').forEach(b=> b.addEventListener('cli
     render();
 
     sbClient.auth.onAuthStateChange(async (event, session) => {
+      if(event === 'PASSWORD_RECOVERY'){
+        state.authView = 'recovery';
+        state.user = session ? session.user : state.user;
+        render();
+        return;
+      }
       const newUser = session ? session.user : null;
       const wasLoggedIn = !!state.user;
       state.user = newUser;
