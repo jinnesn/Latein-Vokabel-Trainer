@@ -247,6 +247,8 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
 .answer-feedback{ font-size:12.5px; margin-top:4px; font-family:'IBM Plex Mono', monospace; }
 .answer-feedback.correct{ color:var(--success); }
 .answer-feedback.incorrect{ color:var(--error); }
+.wrong-strike{ text-decoration:line-through; color:var(--error); opacity:0.75; }
+.correct-fill{ color:var(--error); font-weight:600; }
 
 .summary-score{ text-align:center; padding:10px 0 20px; }
 .summary-score .big{ font-family:'Cinzel', serif; font-size:44px; color:var(--accent-dark); }
@@ -368,7 +370,7 @@ const state = {
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
-    settings: { count: 10, withForms: true, folderId: '' },
+    settings: { count: 10, withForms: true, folderId: '', meaningsMode: 'random' },
     queue: [], idx: 0, results: [], answers: {}, checked: false
   }
 };
@@ -765,8 +767,15 @@ document.addEventListener('keydown', e=>{
     e.preventDefault();
     const checkBtn = document.getElementById('checkAnswerBtn');
     const nextBtn = document.getElementById('nextQuestionBtn');
-    if(checkBtn) checkBtn.click();
-    else if(nextBtn) nextBtn.click();
+    if(nextBtn){ nextBtn.click(); return; } // already checked: any Enter press advances
+    const inputs = Array.from(document.querySelectorAll('[data-answer]'));
+    const idx = inputs.indexOf(document.activeElement);
+    if(idx > -1 && idx < inputs.length - 1){
+      inputs[idx+1].focus();
+      if(inputs[idx+1].select) inputs[idx+1].select();
+    } else if(checkBtn){
+      checkBtn.click();
+    }
   }
 });
 
@@ -1552,6 +1561,14 @@ function renderTestSettings(){
         <div class="toggle-row">
           <div><div class="label">Formen abfragen</div><div class="desc">Stammformen, Genitiv/Genus bzw. Adjektivformen mit abfragen</div></div>
           <label class="switch"><input type="checkbox" id="withFormsToggle" ${state.test.settings.withForms?'checked':''}><span class="track"><span class="knob"></span></span></label>
+        </div>
+        <div>
+          <label class="field-label">Bedeutungen abfragen</label>
+          <div class="segmented" id="meaningsModeSegmented">
+            <button type="button" data-meaningsmode="one" class="${state.test.settings.meaningsMode==='one'?'active':''}">Eine</button>
+            <button type="button" data-meaningsmode="random" class="${state.test.settings.meaningsMode==='random'?'active':''}">Zufällig (1–3)</button>
+            <button type="button" data-meaningsmode="all" class="${state.test.settings.meaningsMode==='all'?'active':''}">Alle</button>
+          </div>
         </div>`}
       </div>
       <div class="btn-row"><button class="btn" id="startTestBtn" ${filtered.length===0?'disabled':''}>Test starten</button></div>
@@ -1559,9 +1576,18 @@ function renderTestSettings(){
   `;
 }
 
+function meaningCountFor(v, mode){
+  const total = v.meanings.length;
+  if(total === 0) return 0;
+  if(mode === 'one') return 1;
+  if(mode === 'all') return total;
+  const cap = Math.min(3, total);
+  return 1 + Math.floor(Math.random() * cap); // 'random': somewhere between 1 and min(3, total)
+}
+
 function buildQuestionFor(v){
   const fields = state.test.settings.withForms ? formFieldsFor(v.type).filter(f => v.forms[f.key]) : [];
-  const meaningCount = Math.min(3, v.meanings.length);
+  const meaningCount = meaningCountFor(v, state.test.settings.meaningsMode);
   return { id: v.id, fields, meaningCount };
 }
 
@@ -1578,7 +1604,9 @@ function renderTestQuestion(){
     if(checked){
       const correct = f.key==='genus' ? normalizeGenus(val)===normalizeGenus(v.forms[f.key]) : normalize(val)===normalize(v.forms[f.key]);
       rowClass = correct ? 'correct' : 'incorrect';
-      feedback = correct ? '<div class="answer-feedback correct">✓ richtig</div>' : `<div class="answer-feedback incorrect">✕ richtig wäre: ${escapeHtml(v.forms[f.key])}</div>`;
+      feedback = correct
+        ? '<div class="answer-feedback correct">✓ richtig</div>'
+        : `<div class="answer-feedback incorrect">${val.trim() ? `<span class="wrong-strike">${escapeHtml(val)}</span> ` : ''}<span class="correct-fill">${escapeHtml(v.forms[f.key])}</span></div>`;
     }
     return `<div class="answer-input-row ${rowClass}"><label class="field-label">${f.label}</label>
       <input type="text" data-answer="${key}" value="${escapeHtml(val)}" ${checked?'readonly':''}>${feedback}</div>`;
@@ -1592,7 +1620,9 @@ function renderTestQuestion(){
     if(checked){
       const isCorrect = correctMeaningsNorm.results[i];
       rowClass = isCorrect ? 'correct' : 'incorrect';
-      feedback = isCorrect ? '<div class="answer-feedback correct">✓ richtig</div>' : '<div class="answer-feedback incorrect">✕ nicht erkannt</div>';
+      feedback = isCorrect
+        ? '<div class="answer-feedback correct">✓ richtig</div>'
+        : `<div class="answer-feedback incorrect">${val.trim() ? `<span class="wrong-strike">${escapeHtml(val)}</span> ` : ''}<span class="correct-fill">${escapeHtml(correctMeaningsNorm.suggestions[i]||'')}</span></div>`;
     }
     return `<div class="answer-input-row ${rowClass}"><input type="text" data-answer="${key}" value="${escapeHtml(val)}" placeholder="Bedeutung ${i+1}" ${checked?'readonly':''}>${feedback}</div>`;
   }).join('');
@@ -1628,7 +1658,17 @@ function gradeMeaningsForDisplay(meanings, count, answers){
     }
     results.push(found);
   }
-  return { results };
+  // for each wrong/blank slot, offer one of the still-unused correct meanings as the suggested answer
+  const leftover = [];
+  for(let j=0;j<meanings.length;j++) if(!used[j]) leftover.push(meanings[j]);
+  let li = 0;
+  const suggestions = results.map(ok => {
+    if(ok) return null;
+    const s = li < leftover.length ? leftover[li] : (meanings[0] || '');
+    li++;
+    return s;
+  });
+  return { results, suggestions };
 }
 
 function renderTestSummary(){
@@ -1672,6 +1712,13 @@ function bindTestEvents(){
   });
   const toggle = document.getElementById('withFormsToggle');
   if(toggle) toggle.addEventListener('change', e=>{ state.test.settings.withForms = e.target.checked; });
+
+  document.querySelectorAll('#meaningsModeSegmented button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.test.settings.meaningsMode = btn.dataset.meaningsmode;
+      render();
+    });
+  });
 
   const startBtn = document.getElementById('startTestBtn');
   if(startBtn) startBtn.addEventListener('click', ()=>{
