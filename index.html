@@ -541,7 +541,7 @@ function csvToDictionaryRows(text){
       if(iNomN > -1) forms.nomN = (row[iNomN]||'').trim();
       if(iGenitiv > -1){ const g = (row[iGenitiv]||'').trim(); if(g) forms.genitiv = g; } // one-termination adjectives (e.g. felix, felicis)
     }
-    const meanings = iBedeutungen > -1 ? (row[iBedeutungen]||'').split(';').map(m=>m.trim()).filter(Boolean) : [];
+    const meanings = iBedeutungen > -1 ? (row[iBedeutungen]||'').split(',').map(m=>m.trim()).filter(Boolean) : [];
     const notes = iBemerkungen > -1 ? (row[iBemerkungen]||'').trim() : '';
     out.push({ type, latin, forms, meanings, notes });
   }
@@ -585,18 +585,18 @@ async function domainCanReceiveMail(domain){
 
 function formFieldsFor(type){
   if(type==='verb') return [
-    {key:'praesens', label:'1. Pers. Sg. Präsens Ind. Akt.', required:false},
-    {key:'perfekt', label:'1. Pers. Sg. Perfekt Ind. Akt.', required:false},
-    {key:'ppp', label:'PPP (falls vorhanden)', required:false}
+    {key:'praesens', label:'1.PSg.Präs.', required:false},
+    {key:'perfekt', label:'1.PSg.Perf.', required:false},
+    {key:'ppp', label:'PPP', required:false}
   ];
   if(type==='noun') return [
-    {key:'genitiv', label:'Genitiv Singular', required:false},
-    {key:'genus', label:'Genus (m, f oder n eingeben)', required:false}
+    {key:'genitiv', label:'Genitiv', required:false},
+    {key:'genus', label:'Genus (m/f/n)', required:false}
   ];
   if(type==='adjective') return [
-    {key:'nomF', label:'Nominativ Sg. Femininum', required:false},
-    {key:'nomN', label:'Nominativ Sg. Neutrum', required:false},
-    {key:'genitiv', label:'Genitiv (falls alle drei Formen gleich sind, z. B. felix, felicis)', required:false}
+    {key:'nomF', label:'Nom.Sg.f', required:false},
+    {key:'nomN', label:'Nom.Sg.n', required:false},
+    {key:'genitiv', label:'Genitiv (falls alle Formen gleich)', required:false}
   ];
   return [];
 }
@@ -634,6 +634,8 @@ function applyDictSuggestion(entry){
   if(entry.notes) state.draftNotes = entry.notes;
   state.dictSuggestions = [];
   render();
+  const submitBtn = document.querySelector('#vocabForm button[type="submit"]');
+  if(submitBtn) submitBtn.focus();
 }
 
 function resetDraft(){
@@ -1071,8 +1073,8 @@ function renderAddTab(){
   const fields = formFieldsFor(type);
   const fieldsHtml = fields.map(f => {
     const err = state.errors['form:'+f.key];
-    return `<div class="field"><label class="field-label">${f.label}${f.required?' <span class="req">*</span>':''}</label>
-      <input type="text" class="${err?'field-error':''}" data-form-key="${f.key}" value="${escapeHtml(forms[f.key]||'')}" placeholder="${f.required?'':'optional'}">
+    return `<div class="field">
+      <input type="text" class="${err?'field-error':''}" data-form-key="${f.key}" value="${escapeHtml(forms[f.key]||'')}" placeholder="${escapeHtml(f.label)}">
       ${err ? `<div class="field-error-msg">${err}</div>` : ''}</div>`;
   }).join('');
 
