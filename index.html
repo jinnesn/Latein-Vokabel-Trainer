@@ -143,8 +143,18 @@ textarea{ resize:vertical; font-family:inherit; }
 .btn.small{ padding:9px 16px; font-size:12px; }
 .btn.full{ width:100%; }
 
-.navigium-link{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--gold); text-decoration:none; border-bottom:1px dotted var(--gold); padding-bottom:1px; }
-.navigium-link:hover{ color:var(--accent-dark); border-color:var(--accent-dark); }
+.field-label-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:5px; }
+.field-label-row .field-label{ margin-bottom:0; }
+.lookup-btn{
+  display:inline-flex; align-items:center; gap:5px; flex-shrink:0;
+  font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.03em; text-transform:uppercase;
+  color:var(--gold); text-decoration:none; border:1px solid var(--gold); border-radius:20px;
+  padding:3px 10px 3px 8px; background:transparent; transition:background .15s, color .15s;
+}
+.lookup-btn:hover{ background:var(--gold); color:#fff9ef; }
+.lookup-btn svg{ width:11px; height:11px; flex-shrink:0; }
+.lookup-btn svg circle, .lookup-btn svg line{ stroke:currentColor; }
+.latin-input-wrap{ position:relative; }
 
 .pool-list{ display:flex; flex-direction:column; gap:6px; margin-top:6px; }
 .pool-item{ display:flex; align-items:center; gap:10px; padding:9px 12px; background:#fffdf7; border:1px solid var(--line); border-radius:6px; font-size:14px; flex-wrap:wrap; }
@@ -175,12 +185,18 @@ textarea{ resize:vertical; font-family:inherit; }
 
 .pool-item.compact{ padding:6px 10px; font-size:13px; }
 .pool-checkbox{ flex-shrink:0; width:16px; height:16px; accent-color:var(--accent); }
-.dict-suggestions{ margin-top:8px; display:flex; flex-direction:column; gap:4px; }
+.dict-suggestions{
+  position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:30;
+  display:flex; flex-direction:column; gap:2px;
+  background:var(--card); border:1px solid var(--card-edge); border-radius:8px;
+  box-shadow:var(--shadow); padding:6px; max-height:280px; overflow-y:auto;
+}
+.dict-suggestions:empty{ display:none; border:none; box-shadow:none; padding:0; }
 .dict-suggestion-item{
   display:flex; align-items:center; gap:10px; text-align:left; width:100%;
-  padding:8px 10px; border:1px solid var(--card-edge); background:#fffdf7; border-radius:6px; font-size:13px; color:var(--ink);
+  padding:8px 10px; border:1px solid transparent; background:transparent; border-radius:6px; font-size:13px; color:var(--ink);
 }
-.dict-suggestion-item:hover{ background:var(--accent-tint); border-color:var(--accent); }
+.dict-suggestion-item:hover, .dict-suggestion-item.active{ background:var(--accent-tint); border-color:var(--accent); }
 .dict-suggestion-item .dsi-word{ font-weight:600; color:var(--accent-dark); min-width:90px; }
 .dict-suggestion-item .dsi-type{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; text-transform:uppercase; color:var(--gold); flex-shrink:0; }
 .dict-suggestion-item .dsi-meaning{ color:var(--ink-faint); flex:1; text-align:left; }
@@ -376,6 +392,7 @@ const state = {
   poolSelected: {},
   poolSelectMode: false,
   dictSuggestions: [],
+  dictActiveIndex: -1,
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
   test: {
     phase: 'settings',
@@ -479,7 +496,7 @@ function shuffle(arr){
   for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; }
   return a;
 }
-function fragCaesarUrl(word){ return 'https://www.frag-caesar.de/lateinwoerterbuch/' + encodeURIComponent((word||'').trim().toLowerCase()) + '-uebersetzung.html'; }
+function navigiumUrl(word){ return 'https://www.navigium.de/latein-woerterbuch.php?form=' + encodeURIComponent((word||'').trim()); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function folderName(id){ if(!id) return null; const f = state.folders.find(x=>x.id===id); return f ? f.name : null; }
 function poolByFolder(folderId){ if(!folderId) return state.pool; return state.pool.filter(v => (v.folderId||null) === folderId); }
@@ -611,6 +628,7 @@ function renderDictSuggestionsInto(results){
   const el = document.getElementById('dictSuggestions');
   if(!el) return;
   state.dictSuggestions = results;
+  state.dictActiveIndex = -1;
   if(!results.length){ el.innerHTML = ''; return; }
   el.innerHTML = results.map((r,i)=>`
     <button type="button" class="dict-suggestion-item" data-suggest-idx="${i}">
@@ -620,9 +638,23 @@ function renderDictSuggestionsInto(results){
     </button>
   `).join('');
   el.querySelectorAll('[data-suggest-idx]').forEach(btn=>{
+    btn.addEventListener('mouseenter', ()=>{
+      state.dictActiveIndex = parseInt(btn.dataset.suggestIdx,10);
+      highlightDictSuggestion();
+    });
     btn.addEventListener('click', ()=>{
       applyDictSuggestion(state.dictSuggestions[parseInt(btn.dataset.suggestIdx,10)]);
     });
+  });
+}
+function highlightDictSuggestion(){
+  const el = document.getElementById('dictSuggestions');
+  if(!el) return;
+  const items = el.querySelectorAll('[data-suggest-idx]');
+  items.forEach((btn,i)=>{
+    const active = i === state.dictActiveIndex;
+    btn.classList.toggle('active', active);
+    if(active && typeof btn.scrollIntoView === 'function') btn.scrollIntoView({ block: 'nearest' });
   });
 }
 function applyDictSuggestion(entry){
@@ -633,6 +665,7 @@ function applyDictSuggestion(entry){
   if(entry.meanings && entry.meanings.length) state.meaningsDraft = entry.meanings.slice(0,6);
   if(entry.notes) state.draftNotes = entry.notes;
   state.dictSuggestions = [];
+  state.dictActiveIndex = -1;
   render();
   const submitBtn = document.querySelector('#vocabForm button[type="submit"]');
   if(submitBtn) submitBtn.focus();
@@ -1093,13 +1126,18 @@ function renderAddTab(){
       ${renderFolderContextBar()}
       <form id="vocabForm">
         <div class="field">
-          <label class="field-label">Vokabel (Grundform) <span class="req">*</span></label>
-          <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen">
-          ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
-          <div class="field-hint">
-            <a class="navigium-link" id="fragCaesarLink" href="${fragCaesarUrl(latinVal)}" target="_blank" rel="noopener">Bei Frag-Caesar nachschlagen ↗</a>
+          <div class="field-label-row">
+            <label class="field-label" for="latinInput">Vokabel (Grundform) <span class="req">*</span></label>
+            <a class="lookup-btn" id="navigiumLink" href="${navigiumUrl(latinVal)}" target="_blank" rel="noopener" title="Bei Navigium nachschlagen">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10.5" cy="10.5" r="6.5" stroke-width="2"/><line x1="15.3" y1="15.3" x2="21" y2="21" stroke-width="2" stroke-linecap="round"/></svg>
+              Navigium
+            </a>
           </div>
-          <div class="dict-suggestions" id="dictSuggestions"></div>
+          <div class="latin-input-wrap">
+            <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen" autocomplete="off">
+            <div class="dict-suggestions" id="dictSuggestions"></div>
+          </div>
+          ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
         </div>
         <div class="field">
           <label class="field-label">Wortart</label>
@@ -1161,12 +1199,32 @@ function bindAddTabEvents(){
 
   document.getElementById('latinInput').addEventListener('input', e=>{
     state.draftLatin = e.target.value;
-    document.getElementById('fragCaesarLink').href = fragCaesarUrl(e.target.value);
+    document.getElementById('navigiumLink').href = navigiumUrl(e.target.value);
+    state.dictActiveIndex = -1;
     const word = e.target.value.trim();
     renderDictSuggestionsInto(word.length < 2 ? [] : searchDictionaryLocal(word));
   });
   document.getElementById('latinInput').addEventListener('blur', ()=>{
     setTimeout(()=>{ renderDictSuggestionsInto([]); }, 150);
+  });
+  document.getElementById('latinInput').addEventListener('keydown', e=>{
+    if(!state.dictSuggestions.length) return;
+    if(e.key === 'ArrowDown'){
+      e.preventDefault(); e.stopPropagation();
+      state.dictActiveIndex = Math.min(state.dictActiveIndex + 1, state.dictSuggestions.length - 1);
+      highlightDictSuggestion();
+    } else if(e.key === 'ArrowUp'){
+      e.preventDefault(); e.stopPropagation();
+      state.dictActiveIndex = Math.max(state.dictActiveIndex - 1, -1);
+      highlightDictSuggestion();
+    } else if(e.key === 'Enter'){
+      if(state.dictActiveIndex > -1){
+        e.preventDefault(); e.stopPropagation();
+        applyDictSuggestion(state.dictSuggestions[state.dictActiveIndex]);
+      }
+    } else if(e.key === 'Escape'){
+      renderDictSuggestionsInto([]);
+    }
   });
 
   document.querySelectorAll('#typeSegmented button').forEach(btn=>{
