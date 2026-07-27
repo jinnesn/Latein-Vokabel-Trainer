@@ -585,8 +585,8 @@ async function domainCanReceiveMail(domain){
 
 function formFieldsFor(type){
   if(type==='verb') return [
-    {key:'praesens', label:'1.P.Sg.Präs.', required:false},
-    {key:'perfekt', label:'1.P.Sg.Perf.', required:false},
+    {key:'praesens', label:'1.PSg.Präs.', required:false},
+    {key:'perfekt', label:'1.PSg.Perf.', required:false},
     {key:'ppp', label:'PPP', required:false}
   ];
   if(type==='noun') return [
@@ -1080,7 +1080,7 @@ function renderAddTab(){
 
   const meaningsHtml = state.meaningsDraft.map((m,i)=>`
     <div class="meaning-row">
-      <input type="text" data-meaning-idx="${i}" value="${escapeHtml(m)}" placeholder="Bedeutung ${i+1}">
+      <input type="text" data-meaning-idx="${i}" value="${escapeHtml(m)}" placeholder="Bedeutung ${i+1}${i===0?' *':''}">
       ${state.meaningsDraft.length>1 ? `<button type="button" class="icon-btn" data-remove-meaning="${i}" title="Entfernen">✕</button>` : ''}
     </div>
   `).join('');
@@ -1107,14 +1107,12 @@ function renderAddTab(){
         </div>
         <div id="dynamicFields">${fieldsHtml}</div>
         <div class="field">
-          <label class="field-label">Bedeutung(en) <span class="req">*</span></label>
           <div id="meaningsList">${meaningsHtml}</div>
           <button type="button" class="link-add" id="addMeaningBtn">+ weitere Bedeutung</button>
           ${meaningsErr ? `<div class="field-error-msg">${meaningsErr}</div>` : ''}
         </div>
         <div class="field">
-          <label class="field-label">Bemerkungen</label>
-          <textarea id="notesInput" rows="2" placeholder="z. B. Eselsbrücken, Besonderheiten, Kontext …">${escapeHtml(state.draftNotes)}</textarea>
+          <textarea id="notesInput" rows="2" placeholder="Bemerkungen (z. B. Eselsbrücken, Besonderheiten, Kontext …)">${escapeHtml(state.draftNotes)}</textarea>
           <div class="field-hint">Wird beim Üben mit angezeigt, aber nicht im Test abgefragt.</div>
         </div>
         <div class="btn-row">
