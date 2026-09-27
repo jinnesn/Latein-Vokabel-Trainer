@@ -59,7 +59,9 @@ h1.title{
 p.subtitle{ font-style:italic; color:var(--ink-soft); margin:6px 0 0; font-size:15px; letter-spacing:0.02em; }
 .pool-stat{ margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.05em; color:var(--ink-faint); text-transform:uppercase; }
 .pool-stat b{ color:var(--accent); font-weight:600; }
-.account-bar{ position:absolute; top:0; right:0; }
+.header-actions{ position:absolute; top:0; right:0; display:flex; align-items:flex-start; gap:8px; }
+.account-bar{ position:relative; }
+.settings-bar{ position:relative; }
 .profile-menu{ position:relative; }
 .profile-avatar{
   width:34px; height:34px; border-radius:50%; border:1px solid var(--accent);
@@ -67,6 +69,25 @@ p.subtitle{ font-style:italic; color:var(--ink-soft); margin:6px 0 0; font-size:
   display:flex; align-items:center; justify-content:center;
 }
 .profile-avatar:hover{ background:var(--accent-dark); }
+.settings-gear-btn{
+  width:34px; height:34px; border-radius:50%; border:1px solid var(--card-edge);
+  background:#fffdf7; color:var(--ink-soft); display:flex; align-items:center; justify-content:center;
+}
+.settings-gear-btn svg{ width:18px; height:18px; }
+.settings-gear-btn:hover{ background:var(--accent-tint); color:var(--accent-dark); border-color:var(--accent); }
+.settings-dropdown{
+  position:absolute; top:42px; right:0; z-index:20;
+  background:var(--card); border:1px solid var(--card-edge); border-radius:8px; box-shadow:var(--shadow);
+  padding:16px; min-width:230px; text-align:left;
+}
+.settings-dropdown h3{ margin:0 0 12px; font-family:'Cinzel', serif; font-size:13px; letter-spacing:0.06em; color:var(--accent-dark); text-transform:uppercase; }
+.settings-row{ margin-bottom:14px; }
+.settings-row:last-child{ margin-bottom:0; }
+.settings-row-label{ display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--ink); margin-bottom:5px; }
+.settings-row-label .settings-pct{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-faint); }
+.settings-row input[type="range"]{ width:100%; accent-color:var(--accent); }
+.settings-row input[type="checkbox"]{ margin-right:6px; }
+.settings-row-toggle{ display:flex; align-items:center; font-size:12.5px; color:var(--ink-soft); }
 .profile-dropdown{
   position:absolute; top:42px; right:0; z-index:20;
   background:var(--card); border:1px solid var(--card-edge); border-radius:8px; box-shadow:var(--shadow);
@@ -312,7 +333,10 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
-    <div class="account-bar" id="accountBar"></div>
+    <div class="header-actions">
+      <div class="settings-bar" id="settingsBar"></div>
+      <div class="account-bar" id="accountBar"></div>
+    </div>
   </header>
 
   <nav class="tabs" id="mainNav" style="display:none;">
@@ -352,6 +376,18 @@ if(!STARTUP_ERROR){
 }
 
 /* ===================== STATE ===================== */
+function loadAudioSettings(){
+  const defaults = { musicVolume: 0.3, sfxVolume: 0.5, musicEnabled: true, sfxEnabled: true };
+  try{
+    const raw = localStorage.getItem('lexiconAudioSettings');
+    if(raw) return Object.assign(defaults, JSON.parse(raw));
+  }catch(e){ /* localStorage nicht verfügbar, z. B. privates Fenster */ }
+  return defaults;
+}
+function saveAudioSettings(){
+  try{ localStorage.setItem('lexiconAudioSettings', JSON.stringify(state.audio)); }catch(e){}
+}
+
 const state = {
   user: null,
   authMode: 'login',
@@ -375,6 +411,9 @@ const state = {
   changePasswordError: '',
   changePasswordNotice: '',
   changePasswordBusy: false,
+
+  settingsMenuOpen: false,
+  audio: loadAudioSettings(),
 
   pool: [],
   folders: [],
@@ -529,6 +568,119 @@ function shuffle(arr){
 }
 function navigiumUrl(word){ return 'https://www.navigium.de/latein-woerterbuch.php?form=' + encodeURIComponent((word||'').trim()); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ===================== AUDIO (sanfte Hintergrundmusik + dezente Klänge) ===================== */
+const AudioEngine = (function(){
+  let ctx = null;
+  let musicGain = null, sfxGain = null;
+  let musicNodes = null;
+  let unlocked = false;
+
+  function ensureContext(){
+    if(!ctx){
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return null;
+      ctx = new Ctx();
+      musicGain = ctx.createGain(); musicGain.gain.value = state.audio.musicVolume; musicGain.connect(ctx.destination);
+      sfxGain = ctx.createGain(); sfxGain.gain.value = state.audio.sfxVolume; sfxGain.connect(ctx.destination);
+    }
+    if(ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+
+  function startMusic(){
+    if(!ensureContext() || musicNodes) return;
+    const now = ctx.currentTime;
+    // ruhiger, offener Dreiklang (G-Dur), sehr leise mit langsamem Einblenden
+    const freqs = [196.00, 246.94, 293.66, 392.00];
+    const oscs = [], gains = [];
+    freqs.forEach((freq, i)=>{
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      osc.connect(g); g.connect(musicGain);
+      osc.start();
+      g.gain.linearRampToValueAtTime(0.11 / freqs.length, now + 3 + i*0.7);
+      oscs.push(osc); gains.push(g);
+    });
+    // sehr langsames "Atmen" der Lautstärke, damit es nicht statisch klingt
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.04;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 0.025;
+    lfo.connect(lfoGain); lfoGain.connect(musicGain.gain);
+    lfo.start();
+    // ganz leises, gefiltertes Rauschen im Hintergrund (wie fernes Blättern/Wind)
+    const bufferSize = 2 * ctx.sampleRate;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * 0.4;
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer; noise.loop = true;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'lowpass'; noiseFilter.frequency.value = 700;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.value = 0;
+    noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(musicGain);
+    noise.start();
+    noiseGain.gain.linearRampToValueAtTime(0.045, now + 4);
+
+    musicNodes = { oscs, gains, lfo, lfoGain, noise, noiseGain };
+  }
+
+  function stopMusic(){
+    if(!musicNodes || !ctx) return;
+    const now = ctx.currentTime;
+    musicNodes.gains.forEach(g=>{ try{ g.gain.cancelScheduledValues(now); g.gain.linearRampToValueAtTime(0, now+0.8); }catch(e){} });
+    try{ musicNodes.noiseGain.gain.cancelScheduledValues(now); musicNodes.noiseGain.gain.linearRampToValueAtTime(0, now+0.8); }catch(e){}
+    const toStop = musicNodes;
+    musicNodes = null;
+    setTimeout(()=>{
+      try{ toStop.oscs.forEach(o=>o.stop()); toStop.lfo.stop(); toStop.noise.stop(); }catch(e){}
+    }, 900);
+  }
+
+  function applyMusicState(){
+    if(state.audio.musicEnabled && state.user) startMusic(); else stopMusic();
+  }
+
+  function setMusicVolume(v){ state.audio.musicVolume = v; if(musicGain) musicGain.gain.value = v; }
+  function setSfxVolume(v){ state.audio.sfxVolume = v; if(sfxGain) sfxGain.gain.value = v; }
+
+  function tone(freq, duration, type, peak){
+    if(!state.audio.sfxEnabled || !ensureContext()) return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.value = 0;
+    osc.connect(g); g.connect(sfxGain);
+    osc.start(now);
+    g.gain.linearRampToValueAtTime(peak||0.18, now+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now+duration);
+    osc.stop(now+duration+0.05);
+  }
+
+  function playFlip(){ tone(520, 0.16, 'sine', 0.14); }
+  function playCorrect(){ tone(523.25, 0.13, 'sine', 0.16); setTimeout(()=>tone(783.99, 0.2, 'sine', 0.13), 85); }
+  function playIncorrect(){ tone(174, 0.26, 'sine', 0.13); }
+
+  // Der erste Klick irgendwo auf der Seite "entsperrt" den AudioContext (Browser-Autoplay-Regel)
+  function unlockOnFirstInteraction(){
+    if(unlocked) return;
+    unlocked = true;
+    ensureContext();
+    applyMusicState();
+  }
+  document.addEventListener('click', unlockOnFirstInteraction, { once:true });
+  document.addEventListener('keydown', unlockOnFirstInteraction, { once:true });
+
+  return { ensureContext, applyMusicState, setMusicVolume, setSfxVolume, playFlip, playCorrect, playIncorrect };
+})();
+
 function folderName(id){ if(!id) return null; const f = state.folders.find(x=>x.id===id); return f ? f.name : null; }
 function poolByFolder(folderId){ if(!folderId) return state.pool; return state.pool.filter(v => (v.folderIds||[]).includes(folderId)); }
 
@@ -717,6 +869,76 @@ function renderPoolStat(){
   if(!state.user){ document.getElementById('poolStat').innerHTML = ''; return; }
   document.getElementById('poolStat').innerHTML = '<b>' + state.pool.length + '</b> Vokabel' + (state.pool.length===1?'':'n') + ' im Pool' + (state.folders.length ? ' · <b>' + state.folders.length + '</b> Ordner' : '');
 }
+function renderSettingsBar(){
+  const el = document.getElementById('settingsBar');
+  if(!el) return;
+  if(!state.user){ el.innerHTML=''; return; }
+  el.innerHTML = `
+    <button type="button" class="settings-gear-btn" id="settingsMenuBtn" title="Einstellungen">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+    ${state.settingsMenuOpen ? renderSettingsDropdown() : ''}
+  `;
+  document.getElementById('settingsMenuBtn').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    state.settingsMenuOpen = !state.settingsMenuOpen;
+    render();
+  });
+  if(state.settingsMenuOpen) bindSettingsDropdownEvents();
+}
+
+function renderSettingsDropdown(){
+  const music = Math.round(state.audio.musicVolume*100);
+  const sfx = Math.round(state.audio.sfxVolume*100);
+  return `
+    <div class="settings-dropdown" id="settingsDropdown">
+      <h3>Ton-Einstellungen</h3>
+      <div class="settings-row">
+        <div class="settings-row-label"><span>Hintergrundmusik</span><span class="settings-pct">${state.audio.musicEnabled ? music+'%' : 'aus'}</span></div>
+        <input type="range" id="musicVolumeRange" min="0" max="100" value="${music}" ${!state.audio.musicEnabled?'disabled':''}>
+        <label class="settings-row-toggle"><input type="checkbox" id="musicEnabledToggle" ${state.audio.musicEnabled?'checked':''}> Musik an</label>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-label"><span>Geräusche</span><span class="settings-pct">${state.audio.sfxEnabled ? sfx+'%' : 'aus'}</span></div>
+        <input type="range" id="sfxVolumeRange" min="0" max="100" value="${sfx}" ${!state.audio.sfxEnabled?'disabled':''}>
+        <label class="settings-row-toggle"><input type="checkbox" id="sfxEnabledToggle" ${state.audio.sfxEnabled?'checked':''}> Geräusche an</label>
+      </div>
+    </div>
+  `;
+}
+
+function bindSettingsDropdownEvents(){
+  const musicRange = document.getElementById('musicVolumeRange');
+  if(musicRange) musicRange.addEventListener('input', e=>{
+    AudioEngine.setMusicVolume(parseInt(e.target.value,10)/100);
+    saveAudioSettings();
+    document.querySelector('#settingsDropdown .settings-pct').textContent = e.target.value+'%';
+  });
+  const sfxRange = document.getElementById('sfxVolumeRange');
+  if(sfxRange) sfxRange.addEventListener('input', e=>{
+    AudioEngine.setSfxVolume(parseInt(e.target.value,10)/100);
+    saveAudioSettings();
+    AudioEngine.playFlip();
+    document.querySelectorAll('#settingsDropdown .settings-pct')[1].textContent = e.target.value+'%';
+  });
+  const musicToggle = document.getElementById('musicEnabledToggle');
+  if(musicToggle) musicToggle.addEventListener('change', e=>{
+    state.audio.musicEnabled = e.target.checked;
+    saveAudioSettings();
+    AudioEngine.applyMusicState();
+    render();
+  });
+  const sfxToggle = document.getElementById('sfxEnabledToggle');
+  if(sfxToggle) sfxToggle.addEventListener('change', e=>{
+    state.audio.sfxEnabled = e.target.checked;
+    saveAudioSettings();
+    render();
+  });
+}
+
 function renderAccountBar(){
   const el = document.getElementById('accountBar');
   if(!state.user){ el.innerHTML=''; return; }
@@ -808,13 +1030,21 @@ function setActiveTab(tab){
   render();
 }
 document.addEventListener('click', e=>{
-  if(!state.profileMenuOpen) return;
   const path = typeof e.composedPath === 'function' ? e.composedPath() : [];
-  const insideMenu = path.some(node => node.classList && node.classList.contains('profile-menu'));
-  if(!insideMenu){
-    state.profileMenuOpen = false;
-    state.changePasswordOpen = false;
-    render();
+  if(state.profileMenuOpen){
+    const insideMenu = path.some(node => node.classList && node.classList.contains('profile-menu'));
+    if(!insideMenu){
+      state.profileMenuOpen = false;
+      state.changePasswordOpen = false;
+      render();
+    }
+  }
+  if(state.settingsMenuOpen){
+    const insideSettings = path.some(node => node.classList && node.classList.contains('settings-bar'));
+    if(!insideSettings){
+      state.settingsMenuOpen = false;
+      render();
+    }
   }
 });
 document.addEventListener('keydown', e=>{
@@ -861,7 +1091,9 @@ document.addEventListener('keydown', e=>{
 
 function render(){
   renderPoolStat();
+  renderSettingsBar();
   renderAccountBar();
+  AudioEngine.applyMusicState();
   const nav = document.getElementById('mainNav');
   const el = document.getElementById('content');
 
@@ -1639,7 +1871,7 @@ function bindPracticeEvents(){
 
   const card = document.getElementById('flashcard');
   if(!card) return;
-  card.addEventListener('click', ()=>{ state.practice.flipped = !state.practice.flipped; card.classList.toggle('flipped', state.practice.flipped); });
+  card.addEventListener('click', ()=>{ state.practice.flipped = !state.practice.flipped; card.classList.toggle('flipped', state.practice.flipped); AudioEngine.playFlip(); });
   document.getElementById('nextCard').addEventListener('click', ()=>{
     state.practice.idx = (state.practice.idx+1) % state.practice.order.length;
     state.practice.flipped = false; render();
@@ -1887,6 +2119,8 @@ function bindTestEvents(){
     const meaningsCorrect = mResult.results.filter(Boolean).length;
     state.test.results.push({ latin: v.latin, formsCorrect, formsTotal: q.fields.length, meaningsCorrect, meaningsTotal: q.meaningCount });
     state.test.checked = true;
+    const allCorrect = formsCorrect === q.fields.length && meaningsCorrect === q.meaningCount;
+    if(allCorrect) AudioEngine.playCorrect(); else AudioEngine.playIncorrect();
     render();
   });
 
