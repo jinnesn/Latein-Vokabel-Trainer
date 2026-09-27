@@ -676,9 +676,7 @@ const AudioEngine = (function(){
     applyMusicState();
   }
   document.addEventListener('click', unlockOnFirstInteraction, { once:true });
-document.addEventListener('touchstart', unlockOnFirstInteraction, { once:true });
-document.addEventListener('keydown', unlockOnFirstInteraction, { once:true });
-
+  document.addEventListener('keydown', unlockOnFirstInteraction, { once:true });
 
   return { ensureContext, applyMusicState, setMusicVolume, setSfxVolume, playFlip, playCorrect, playIncorrect };
 })();
