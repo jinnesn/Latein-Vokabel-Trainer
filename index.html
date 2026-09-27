@@ -209,6 +209,9 @@ textarea{ resize:vertical; font-family:inherit; }
 }
 .bulk-bar select{ padding:6px 8px; border-radius:6px; border:1px solid var(--card-edge); background:#fffdf7; font-size:13px; }
 
+.pagination-row{ display:flex; align-items:center; justify-content:center; gap:14px; margin-top:12px; font-size:13px; color:var(--ink-soft); }
+.pagination-row button:disabled{ opacity:0.4; cursor:default; }
+
 .folder-manage-row{ display:flex; gap:8px; margin-bottom:12px; }
 .folder-manage-row input{ flex:1; }
 .folder-tag-list{ display:flex; flex-wrap:wrap; gap:8px; }
@@ -381,16 +384,17 @@ const state = {
   draftLatin: '',
   draftForms: {},
   draftNotes: '',
-  draftFolderId: null,
+  draftFolderIds: [],
   meaningsDraft: [''],
   errors: {},
-  folderContext: null,
   quickAddFolderOpen: false,
   poolFilter: '',
   poolFolderFilter: '',
   poolSort: 'latin',
   poolSelected: {},
   poolSelectMode: false,
+  poolPage: 1,
+  bulkTargetFolder: '',
   dictSuggestions: [],
   dictActiveIndex: -1,
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
@@ -406,12 +410,19 @@ const TYPE_LABELS = { verb: 'Verb', noun: 'Substantiv', adjective: 'Adjektiv', o
 /* ===================== DATA LAYER (Supabase) ===================== */
 async function loadPool(){
   const { data: vocabRows, error: vErr } = await sbClient.from('vocab').select('*').order('latin');
+  const { data: linkRows, error: lErr } = await sbClient.from('vocab_folders').select('*');
+  if(lErr) console.error(lErr);
+  const foldersByVocab = {};
+  (linkRows||[]).forEach(l=>{
+    if(!foldersByVocab[l.vocab_id]) foldersByVocab[l.vocab_id] = [];
+    foldersByVocab[l.vocab_id].push(l.folder_id);
+  });
   if(vErr){ console.error(vErr); state.pool = []; }
   else {
     state.pool = vocabRows.map(r => ({
       id: r.id, type: r.type, latin: r.latin,
       forms: r.forms || {}, meanings: r.meanings || [], notes: r.notes || '',
-      folderId: r.folder_id, createdAt: r.created_at
+      folderIds: foldersByVocab[r.id] || [], createdAt: r.created_at
     }));
   }
   const { data: folderRows, error: fErr } = await sbClient.from('folders').select('*').order('name');
@@ -421,26 +432,46 @@ async function loadPool(){
   }
 }
 
+async function setVocabFolders(vocabId, folderIds){
+  const { error: delErr } = await sbClient.from('vocab_folders').delete().eq('vocab_id', vocabId);
+  if(delErr) throw delErr;
+  const ids = (folderIds||[]).filter(Boolean);
+  if(ids.length){
+    const { error: insErr } = await sbClient.from('vocab_folders').insert(ids.map(fid=>({ vocab_id: vocabId, folder_id: fid })));
+    if(insErr) throw insErr;
+  }
+}
 async function insertVocab(entry){
-  const { error } = await sbClient.from('vocab').insert({
+  const { data, error } = await sbClient.from('vocab').insert({
     type: entry.type, latin: entry.latin, forms: entry.forms,
-    meanings: entry.meanings, notes: entry.notes || '', folder_id: entry.folderId
-  });
+    meanings: entry.meanings, notes: entry.notes || ''
+  }).select().single();
   if(error) throw error;
+  await setVocabFolders(data.id, entry.folderIds);
 }
 async function updateVocabRow(id, entry){
   const { error } = await sbClient.from('vocab').update({
     type: entry.type, latin: entry.latin, forms: entry.forms,
-    meanings: entry.meanings, notes: entry.notes || '', folder_id: entry.folderId
+    meanings: entry.meanings, notes: entry.notes || ''
   }).eq('id', id);
   if(error) throw error;
+  await setVocabFolders(id, entry.folderIds);
 }
 async function deleteVocabRow(id){
   const { error } = await sbClient.from('vocab').delete().eq('id', id);
   if(error) throw error;
 }
-async function bulkMoveVocab(ids, folderId){
-  const { error } = await sbClient.from('vocab').update({ folder_id: folderId }).in('id', ids);
+async function bulkAddToFolder(ids, folderId){
+  if(!folderId || ids.length===0) return;
+  const { error } = await sbClient.from('vocab_folders').upsert(
+    ids.map(id=>({ vocab_id: id, folder_id: folderId })),
+    { onConflict: 'vocab_id,folder_id' }
+  );
+  if(error) throw error;
+}
+async function bulkRemoveFromFolder(ids, folderId){
+  if(!folderId || ids.length===0) return;
+  const { error } = await sbClient.from('vocab_folders').delete().eq('folder_id', folderId).in('vocab_id', ids);
   if(error) throw error;
 }
 async function insertFolder(name){
@@ -499,7 +530,7 @@ function shuffle(arr){
 function navigiumUrl(word){ return 'https://www.navigium.de/latein-woerterbuch.php?form=' + encodeURIComponent((word||'').trim()); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function folderName(id){ if(!id) return null; const f = state.folders.find(x=>x.id===id); return f ? f.name : null; }
-function poolByFolder(folderId){ if(!folderId) return state.pool; return state.pool.filter(v => (v.folderId||null) === folderId); }
+function poolByFolder(folderId){ if(!folderId) return state.pool; return state.pool.filter(v => (v.folderIds||[]).includes(folderId)); }
 
 /* ---- CSV parsing for the dictionary import ---- */
 function parseCsv(text){
@@ -673,11 +704,11 @@ function applyDictSuggestion(entry){
 
 function resetDraft(){
   state.editingId = null; state.draftType = 'verb'; state.draftLatin = '';
-  state.draftForms = {}; state.draftNotes = ''; state.draftFolderId = null; state.meaningsDraft = ['']; state.errors = {};
+  state.draftForms = {}; state.draftNotes = ''; state.draftFolderIds = []; state.meaningsDraft = ['']; state.errors = {};
 }
 function startEditEntry(v){
   state.editingId = v.id; state.draftType = v.type; state.draftLatin = v.latin;
-  state.draftForms = Object.assign({}, v.forms); state.draftNotes = v.notes || ''; state.draftFolderId = v.folderId || null;
+  state.draftForms = Object.assign({}, v.forms); state.draftNotes = v.notes || ''; state.draftFolderIds = (v.folderIds||[]).slice();
   state.meaningsDraft = v.meanings.slice(); state.errors = {};
 }
 
@@ -1070,21 +1101,14 @@ async function handleLogout(){
 }
 
 /* ===================== ADD TAB ===================== */
-function renderFolderOptions(selectedId){
-  const none = `<option value="" ${!selectedId?'selected':''}>Kein Ordner</option>`;
-  const opts = state.folders.map(f=>`<option value="${f.id}" ${selectedId===f.id?'selected':''}>${escapeHtml(f.name)}</option>`).join('');
-  return none + opts;
-}
-
 function renderFolderContextBar(){
-  const chips = [`<button type="button" class="folder-chip-btn ${!state.folderContext?'active':''}" data-context="">Alle Ordner</button>`]
-    .concat(state.folders.map(f=>`<button type="button" class="folder-chip-btn ${state.folderContext===f.id?'active':''}" data-context="${f.id}">${escapeHtml(f.name)}</button>`))
+  const chips = state.folders.map(f=>`<button type="button" class="folder-chip-btn ${state.draftFolderIds.includes(f.id)?'active':''}" data-context="${f.id}">${escapeHtml(f.name)}</button>`)
     .concat([`<button type="button" class="folder-chip-btn add" id="quickAddFolderBtn">+ Neuer Ordner</button>`])
     .join('');
   return `
     <div class="context-bar">
-      <div class="context-label">Du fügst hinzu zu</div>
-      <div class="context-chips">${chips}</div>
+      <div class="context-label">Ordner zuordnen (Mehrfachauswahl möglich)</div>
+      <div class="context-chips">${chips || '<span class="empty-note">Noch keine Ordner angelegt.</span>'}</div>
       <div class="quick-add-row" id="quickAddFolderRow" style="display:${state.quickAddFolderOpen?'flex':'none'};">
         <input type="text" id="quickFolderName" placeholder="Name des neuen Ordners">
         <button type="button" class="btn small" id="quickFolderCreate">Anlegen</button>
@@ -1169,8 +1193,9 @@ function bindAddTabEvents(){
 
   document.querySelectorAll('[data-context]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      state.folderContext = btn.dataset.context || null;
-      if(state.editingId === null) state.draftFolderId = state.folderContext;
+      const fid = btn.dataset.context;
+      const idx = state.draftFolderIds.indexOf(fid);
+      if(idx > -1) state.draftFolderIds.splice(idx,1); else state.draftFolderIds.push(fid);
       state.quickAddFolderOpen = false;
       render();
     });
@@ -1190,8 +1215,7 @@ function bindAddTabEvents(){
       await insertFolder(name);
       await loadPool();
       const created = state.folders.find(f=>f.name===name);
-      state.folderContext = created ? created.id : null;
-      if(state.editingId === null) state.draftFolderId = state.folderContext;
+      if(created) state.draftFolderIds.push(created.id);
       state.quickAddFolderOpen = false;
       render();
     }catch(err){ console.error(err); alert('Ordner konnte nicht erstellt werden: ' + err.message); }
@@ -1302,13 +1326,14 @@ function bindAddTabEvents(){
 
     if(Object.keys(state.errors).length > 0){ render(); return; }
 
-    const entry = { type, latin, forms, meanings, notes: (state.draftNotes||'').trim(), folderId: state.draftFolderId || null };
+    const entry = { type, latin, forms, meanings, notes: (state.draftNotes||'').trim(), folderIds: state.draftFolderIds.slice() };
     try{
+      const keepFolderIds = entry.folderIds.slice();
       if(state.editingId !== null) await updateVocabRow(state.editingId, entry);
       else await insertVocab(entry);
       await loadPool();
       resetDraft();
-      state.draftFolderId = state.folderContext;
+      state.draftFolderIds = keepFolderIds;
       render();
     }catch(err){
       console.error(err);
@@ -1327,19 +1352,27 @@ function sortedPool(list){
   return arr;
 }
 
+const POOL_PAGE_SIZE = 15;
+
 function renderPoolTab(){
-  const listEntries = sortedPool(
+  const allEntries = sortedPool(
     state.pool
       .filter(v => v.latin.toLowerCase().includes(state.poolFilter.toLowerCase()))
-      .filter(v => !state.poolFolderFilter || (v.folderId||'')===state.poolFolderFilter)
+      .filter(v => !state.poolFolderFilter || (v.folderIds||[]).includes(state.poolFolderFilter))
   );
+  const totalPages = Math.max(1, Math.ceil(allEntries.length / POOL_PAGE_SIZE));
+  if(state.poolPage > totalPages) state.poolPage = totalPages;
+  if(state.poolPage < 1) state.poolPage = 1;
+  const pageStart = (state.poolPage - 1) * POOL_PAGE_SIZE;
+  const listEntries = allEntries.slice(pageStart, pageStart + POOL_PAGE_SIZE);
+
   const poolItems = listEntries.map(v => `
       <div class="pool-item compact">
         ${state.poolSelectMode ? `<input type="checkbox" class="pool-checkbox" data-select-vocab="${v.id}" ${state.poolSelected[v.id]?'checked':''}>` : ''}
         <span class="lw">${escapeHtml(v.latin)}</span>
         <span class="meta">${TYPE_LABELS[v.type]} · ${escapeHtml(v.meanings.join(', '))}</span>
         ${v.notes ? `<span class="folder-chip" title="${escapeHtml(v.notes)}">📝</span>` : ''}
-        ${folderName(v.folderId) ? `<span class="folder-chip">${escapeHtml(folderName(v.folderId))}</span>` : ''}
+        ${(v.folderIds||[]).map(fid => folderName(fid) ? `<span class="folder-chip">${escapeHtml(folderName(fid))}</span>` : '').join('')}
         <span class="actions">
           <button data-edit="${v.id}" title="Bearbeiten">✎</button>
           <button data-delete="${v.id}" title="Löschen">🗑</button>
@@ -1354,11 +1387,20 @@ function renderPoolTab(){
     <div class="bulk-bar">
       <span>${selectedIds.length} ausgewählt</span>
       <select id="bulkFolderSelect">
-        <option value="">Kein Ordner</option>
-        ${state.folders.map(f=>`<option value="${f.id}">${escapeHtml(f.name)}</option>`).join('')}
+        <option value="" ${!state.bulkTargetFolder?'selected':''}>Ordner wählen…</option>
+        ${state.folders.map(f=>`<option value="${f.id}" ${state.bulkTargetFolder===f.id?'selected':''}>${escapeHtml(f.name)}</option>`).join('')}
       </select>
-      <button type="button" class="btn small" id="bulkMoveBtn">In Ordner verschieben</button>
+      <button type="button" class="btn small" id="bulkAddBtn">Zu Ordner hinzufügen</button>
+      <button type="button" class="btn secondary small" id="bulkRemoveBtn">Aus Ordner entfernen</button>
       <button type="button" class="btn secondary small" id="bulkClearBtn">Auswahl aufheben</button>
+    </div>
+  ` : '';
+
+  const paginationBar = allEntries.length > POOL_PAGE_SIZE ? `
+    <div class="pagination-row">
+      <button type="button" class="btn secondary small" id="poolPrevPage" ${state.poolPage<=1?'disabled':''}>◀ Zurück</button>
+      <span>Seite ${state.poolPage} / ${totalPages}</span>
+      <button type="button" class="btn secondary small" id="poolNextPage" ${state.poolPage>=totalPages?'disabled':''}>Weiter ▶</button>
     </div>
   ` : '';
 
@@ -1391,6 +1433,7 @@ function renderPoolTab(){
       <div class="pool-list">
         ${state.pool.length ? (poolItems || '<div class="empty-note">Keine Treffer.</div>') : '<div class="empty-note">Noch keine Vokabeln — füge zuerst welche hinzu.</div>'}
       </div>
+      ${paginationBar}
     </div>
 
     <div class="panel">
@@ -1427,14 +1470,19 @@ function bindPoolTabEvents(){
   if(poolSearch) poolSearch.addEventListener('input', e=>{
     const pos = e.target.selectionStart;
     state.poolFilter = e.target.value;
+    state.poolPage = 1;
     render();
     const el2 = document.getElementById('poolSearch');
     el2.focus(); el2.setSelectionRange(pos, pos);
   });
   const poolFolderFilter = document.getElementById('poolFolderFilter');
-  if(poolFolderFilter) poolFolderFilter.addEventListener('change', e=>{ state.poolFolderFilter = e.target.value; render(); });
+  if(poolFolderFilter) poolFolderFilter.addEventListener('change', e=>{ state.poolFolderFilter = e.target.value; state.poolPage = 1; render(); });
   const poolSort = document.getElementById('poolSort');
   if(poolSort) poolSort.addEventListener('change', e=>{ state.poolSort = e.target.value; render(); });
+  const poolPrevPage = document.getElementById('poolPrevPage');
+  if(poolPrevPage) poolPrevPage.addEventListener('click', ()=>{ state.poolPage -= 1; render(); });
+  const poolNextPage = document.getElementById('poolNextPage');
+  if(poolNextPage) poolNextPage.addEventListener('click', ()=>{ state.poolPage += 1; render(); });
 
   document.querySelectorAll('[data-select-vocab]').forEach(cb=>{
     cb.addEventListener('change', e=>{
@@ -1451,17 +1499,27 @@ function bindPoolTabEvents(){
     });
     render();
   });
-  const bulkMoveBtn = document.getElementById('bulkMoveBtn');
-  if(bulkMoveBtn) bulkMoveBtn.addEventListener('click', async ()=>{
+  const bulkFolderSelect = document.getElementById('bulkFolderSelect');
+  if(bulkFolderSelect) bulkFolderSelect.addEventListener('change', e=>{ state.bulkTargetFolder = e.target.value; });
+  const bulkAddBtn = document.getElementById('bulkAddBtn');
+  if(bulkAddBtn) bulkAddBtn.addEventListener('click', async ()=>{
     const ids = Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
-    if(ids.length===0) return;
-    const folderId = document.getElementById('bulkFolderSelect').value || null;
+    if(ids.length===0 || !state.bulkTargetFolder) return;
     try{
-      await bulkMoveVocab(ids, folderId);
-      state.poolSelected = {};
+      await bulkAddToFolder(ids, state.bulkTargetFolder);
       await loadPool();
       render();
-    }catch(err){ console.error(err); alert('Verschieben fehlgeschlagen: ' + err.message); }
+    }catch(err){ console.error(err); alert('Hinzufügen fehlgeschlagen: ' + err.message); }
+  });
+  const bulkRemoveBtn = document.getElementById('bulkRemoveBtn');
+  if(bulkRemoveBtn) bulkRemoveBtn.addEventListener('click', async ()=>{
+    const ids = Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
+    if(ids.length===0 || !state.bulkTargetFolder) return;
+    try{
+      await bulkRemoveFromFolder(ids, state.bulkTargetFolder);
+      await loadPool();
+      render();
+    }catch(err){ console.error(err); alert('Entfernen fehlgeschlagen: ' + err.message); }
   });
   const bulkClearBtn = document.getElementById('bulkClearBtn');
   if(bulkClearBtn) bulkClearBtn.addEventListener('click', ()=>{ state.poolSelected = {}; render(); });
@@ -1478,8 +1536,9 @@ function bindPoolTabEvents(){
       const fid = btn.dataset.deleteFolder;
       try{
         await deleteFolderRow(fid);
-        if(state.folderContext===fid) state.folderContext = null;
+        state.draftFolderIds = state.draftFolderIds.filter(id=>id!==fid);
         if(state.poolFolderFilter===fid) state.poolFolderFilter = '';
+        if(state.bulkTargetFolder===fid) state.bulkTargetFolder = '';
         await loadPool();
         render();
       }catch(err){ console.error(err); }
@@ -1489,7 +1548,6 @@ function bindPoolTabEvents(){
   document.querySelectorAll('[data-edit]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       startEditEntry(state.pool.find(x=>x.id===btn.dataset.edit));
-      state.folderContext = state.draftFolderId;
       setActiveTab('add');
     });
   });
@@ -1598,7 +1656,6 @@ function bindPracticeEvents(){
   document.getElementById('editFromPractice').addEventListener('click', ()=>{
     const id = state.practice.order[state.practice.idx];
     startEditEntry(state.pool.find(x=>x.id===id));
-    state.folderContext = state.draftFolderId;
     setActiveTab('add');
   });
 }
