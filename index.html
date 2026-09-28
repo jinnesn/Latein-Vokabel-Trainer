@@ -58,6 +58,7 @@ h1.title{
 }
 p.subtitle{ font-style:italic; color:var(--ink-soft); margin:6px 0 0; font-size:15px; letter-spacing:0.02em; }
 .pool-stat{ margin-top:10px; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.05em; color:var(--ink-faint); text-transform:uppercase; }
+.version-tag{ margin-top:4px; font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--ink-faint); opacity:0.7; }
 .pool-stat b{ color:var(--accent); font-weight:600; }
 .header-actions{ position:absolute; top:0; right:0; display:flex; align-items:flex-start; gap:8px; }
 .account-bar{ position:relative; }
@@ -333,6 +334,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
+    <div class="version-tag">Version 28.09. · mit Ton</div>
     <div class="header-actions">
       <div class="settings-bar" id="settingsBar"></div>
       <div class="account-bar" id="accountBar"></div>
@@ -643,7 +645,7 @@ const AudioEngine = (function(){
   }
 
   function applyMusicState(){
-    if(state.audio.musicEnabled && state.user) startMusic(); else stopMusic();
+    if(state.audio.musicEnabled) startMusic(); else stopMusic();
   }
 
   function setMusicVolume(v){ state.audio.musicVolume = v; if(musicGain) musicGain.gain.value = v; }
@@ -872,7 +874,6 @@ function renderPoolStat(){
 function renderSettingsBar(){
   const el = document.getElementById('settingsBar');
   if(!el) return;
-  if(!state.user){ el.innerHTML=''; return; }
   el.innerHTML = `
     <button type="button" class="settings-gear-btn" id="settingsMenuBtn" title="Einstellungen">
       <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
