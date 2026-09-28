@@ -362,7 +362,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
-    <div class="version-tag">Version 28.09. · Auswahl v5</div>
+    <div class="version-tag">Version 28.09. · Auswahl v6</div>
     <div class="header-actions">
       <div class="settings-bar" id="settingsBar"></div>
       <div class="account-bar" id="accountBar"></div>
@@ -1831,31 +1831,43 @@ function renderPoolTab(){
   };
   const hasBar = state.poolSelectMode && selectedIds.length > 0;
   if(!hasBar) state.folderMenuOpen = false;
-  const folderRows = state.folders.map(f=>{
-    const n = selectedIds.filter(id=>{ const v = state.pool.find(x=>x.id===id); return v && (v.folderIds||[]).includes(f.id); }).length;
+  const countIn = fid => selectedIds.filter(id=>{ const v = state.pool.find(x=>x.id===id); return v && (v.folderIds||[]).includes(fid); }).length;
+  const addRows = state.folders.map(f=>{
+    const n = countIn(f.id);
     const hint = n === selectedIds.length ? '✓ alle schon drin' : (n > 0 ? n + ' schon drin' : '');
     return `<button type="button" class="folder-menu-item" data-bulk-folder="${f.id}">
-      <span class="fm-icon">${ICON.folder}</span>
-      <span class="fm-name">${escapeHtml(f.name)}</span>
-      <span class="fm-hint">${hint}</span>
+      <span class="fm-icon">${ICON.folder}</span><span class="fm-name">${escapeHtml(f.name)}</span><span class="fm-hint">${hint}</span>
     </button>`;
   }).join('');
-  const folderMenu = state.folderMenuOpen ? `
+  const removable = state.folders.filter(f=>countIn(f.id) > 0);
+  const removeRows = removable.map(f=>{
+    const n = countIn(f.id);
+    return `<button type="button" class="folder-menu-item" data-bulk-unfolder="${f.id}">
+      <span class="fm-icon">${ICON.folder}</span><span class="fm-name">${escapeHtml(f.name)}</span><span class="fm-hint">${n} von ${selectedIds.length} drin</span>
+    </button>`;
+  }).join('');
+  const addMenu = state.folderMenuOpen === 'add' ? `
     <div class="folder-menu">
-      <div class="folder-menu-title">In welchen Ordner?</div>
-      ${folderRows || '<div class="folder-menu-empty">Noch keine Ordner. Lege unten unter „Ordner verwalten“ einen an.</div>'}
+      <div class="folder-menu-title">In welchen Ordner hinzufügen?</div>
+      ${addRows || '<div class="folder-menu-empty">Noch keine Ordner. Lege unten unter „Ordner verwalten“ einen an.</div>'}
     </div>` : '';
-  const filterName = state.poolFolderFilter ? folderName(state.poolFolderFilter) : null;
-  const removeBtn = filterName ? `<button type="button" class="bulk-btn" id="bulkRemoveBtn">${ICON.minus}<span class="bulk-btn-label">Aus „${escapeHtml(filterName)}“ entfernen</span></button>` : '';
+  const removeMenu = state.folderMenuOpen === 'remove' ? `
+    <div class="folder-menu">
+      <div class="folder-menu-title">Aus welchem Ordner entfernen?</div>
+      ${removeRows}
+    </div>` : '';
   const bulkBar = hasBar ? `
     <div class="bulk-bar">
       <button type="button" class="bulk-clear" id="bulkClearBtn" title="Auswahl aufheben" aria-label="Auswahl aufheben">${ICON.x}</button>
       <span class="bulk-count">${selectedIds.length} ausgewählt</span>
       <div class="bulk-folder">
-        <button type="button" class="bulk-btn ${state.folderMenuOpen?'open':''}" id="bulkFolderBtn">${ICON.folder}<span class="bulk-btn-label">Zu Ordner hinzufügen</span>${ICON.chevron}</button>
-        ${folderMenu}
+        <button type="button" class="bulk-btn ${state.folderMenuOpen==='add'?'open':''}" id="bulkFolderBtn">${ICON.folder}<span class="bulk-btn-label">Zu Ordner hinzufügen</span>${ICON.chevron}</button>
+        ${addMenu}
       </div>
-      ${removeBtn}
+      ${removable.length ? `<div class="bulk-folder">
+        <button type="button" class="bulk-btn ${state.folderMenuOpen==='remove'?'open':''}" id="bulkUnfolderBtn">${ICON.minus}<span class="bulk-btn-label">Aus Ordner entfernen</span>${ICON.chevron}</button>
+        ${removeMenu}
+      </div>` : ''}
       <button type="button" class="bulk-delete" id="bulkDeleteBtn" title="Ausgewählte löschen" aria-label="Ausgewählte löschen">${ICON.trash}</button>
     </div>
   ` : '';
@@ -1958,11 +1970,13 @@ function bindPoolTabEvents(){
     render();
   });
   const bulkFolderBtn = document.getElementById('bulkFolderBtn');
-  if(bulkFolderBtn) bulkFolderBtn.addEventListener('click', ()=>{ state.folderMenuOpen = !state.folderMenuOpen; render(); });
+  if(bulkFolderBtn) bulkFolderBtn.addEventListener('click', ()=>{ state.folderMenuOpen = state.folderMenuOpen === 'add' ? false : 'add'; render(); });
+  const bulkUnfolderBtn = document.getElementById('bulkUnfolderBtn');
+  if(bulkUnfolderBtn) bulkUnfolderBtn.addEventListener('click', ()=>{ state.folderMenuOpen = state.folderMenuOpen === 'remove' ? false : 'remove'; render(); });
 
   const selectedNow = () => Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
   const hasFolder = (id, fid) => { const v = state.pool.find(x=>x.id===id); return !!v && (v.folderIds||[]).includes(fid); };
-  const undoAction = (label, work) => ({ label:'Rückgängig', fn: async ()=>{
+  const undoAction = work => ({ label:'Rückgängig', fn: async ()=>{
     try{ await work(); await loadPool(); render(); showToast('Rückgängig gemacht'); }
     catch(err){ console.error(err); showToast('Rückgängig hat nicht geklappt: ' + err.message); }
   }});
@@ -1989,7 +2003,7 @@ function bindPoolTabEvents(){
         AudioEngine.playSave();
         render();
         showToast(plural(missing.length, 'Vokabel', 'Vokabeln') + ' zu „' + name + '“ hinzugefügt',
-          undoAction('Rückgängig', ()=> bulkRemoveFromFolder(missing, fid)));
+          undoAction(()=> bulkRemoveFromFolder(missing, fid)));
       }catch(err){
         console.error(err); render();
         showToast('Das hat nicht geklappt: ' + err.message);
@@ -1997,26 +2011,28 @@ function bindPoolTabEvents(){
     });
   });
 
-  const bulkRemoveBtn = document.getElementById('bulkRemoveBtn');
-  if(bulkRemoveBtn) bulkRemoveBtn.addEventListener('click', async ()=>{
-    if(bulkFolderBusy) return;
-    const fid = state.poolFolderFilter;
-    const ids = selectedNow().filter(id=>hasFolder(id, fid));
-    if(!fid || ids.length === 0) return;
-    const name = folderName(fid) || 'Ordner';
-    bulkFolderBusy = true;
-    try{
-      await bulkRemoveFromFolder(ids, fid);
-      await loadPool();
-      ids.forEach(id=>{ delete state.poolSelected[id]; });
-      AudioEngine.playTick();
-      render();
-      showToast(plural(ids.length, 'Vokabel', 'Vokabeln') + ' aus „' + name + '“ entfernt',
-        undoAction('Rückgängig', ()=> bulkAddToFolder(ids, fid)));
-    }catch(err){
-      console.error(err); render();
-      showToast('Das hat nicht geklappt: ' + err.message);
-    }finally{ bulkFolderBusy = false; }
+  document.querySelectorAll('[data-bulk-unfolder]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(bulkFolderBusy) return;
+      const fid = btn.dataset.bulkUnfolder;
+      const ids = selectedNow().filter(id=>hasFolder(id, fid));
+      if(ids.length === 0) return;
+      const name = folderName(fid) || 'Ordner';
+      state.folderMenuOpen = false;
+      bulkFolderBusy = true;
+      try{
+        await bulkRemoveFromFolder(ids, fid);
+        await loadPool();
+        state.poolSelected = {};
+        AudioEngine.playTick();
+        render();
+        showToast(plural(ids.length, 'Vokabel', 'Vokabeln') + ' aus „' + name + '“ entfernt',
+          undoAction(()=> bulkAddToFolder(ids, fid)));
+      }catch(err){
+        console.error(err); render();
+        showToast('Das hat nicht geklappt: ' + err.message);
+      }finally{ bulkFolderBusy = false; }
+    });
   });
 
   const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
