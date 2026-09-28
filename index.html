@@ -334,7 +334,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
-    <div class="version-tag">Version 28.09. · mit Ton</div>
+    <div class="version-tag">Version 28.09. · Klaviermusik</div>
     <div class="header-actions">
       <div class="settings-bar" id="settingsBar"></div>
       <div class="account-bar" id="accountBar"></div>
@@ -379,7 +379,7 @@ if(!STARTUP_ERROR){
 
 /* ===================== STATE ===================== */
 function loadAudioSettings(){
-  const defaults = { musicVolume: 0.3, sfxVolume: 0.5, musicEnabled: true, sfxEnabled: true };
+  const defaults = { musicVolume: 0.5, sfxVolume: 0.6, musicEnabled: true, sfxEnabled: true };
   try{
     const raw = localStorage.getItem('lexiconAudioSettings');
     if(raw) return Object.assign(defaults, JSON.parse(raw));
@@ -571,77 +571,168 @@ function shuffle(arr){
 function navigiumUrl(word){ return 'https://www.navigium.de/latein-woerterbuch.php?form=' + encodeURIComponent((word||'').trim()); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-/* ===================== AUDIO (sanfte Hintergrundmusik + dezente Klänge) ===================== */
+/* ===================== AUDIO (ruhige generative Klaviermusik + angenehme Klänge) ===================== */
 const AudioEngine = (function(){
   let ctx = null;
-  let musicGain = null, sfxGain = null;
-  let musicNodes = null;
+  let musicGain = null, sfxGain = null, musicIn = null, sfxIn = null;
+  let noiseBuf = null;
+  let session = null;      // laufende Musik-Sitzung
   let unlocked = false;
+
+  const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  function makeImpulse(seconds, decay){
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+    for(let c = 0; c < 2; c++){
+      const d = buf.getChannelData(c);
+      for(let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return buf;
+  }
 
   function ensureContext(){
     if(!ctx){
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if(!Ctx) return null;
       ctx = new Ctx();
+      // Musik-Kette: Eingang -> weicher Tiefpass -> (trocken + Hall) -> Kompressor -> Lautstärke
       musicGain = ctx.createGain(); musicGain.gain.value = state.audio.musicVolume; musicGain.connect(ctx.destination);
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -20; comp.ratio.value = 3; comp.connect(musicGain);
+      musicIn = ctx.createGain();
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200; lp.Q.value = 0.3;
+      musicIn.connect(lp);
+      const dry = ctx.createGain(); dry.gain.value = 0.55; lp.connect(dry); dry.connect(comp);
+      const rev = ctx.createConvolver(); rev.buffer = makeImpulse(4.5, 2.6);
+      const wet = ctx.createGain(); wet.gain.value = 0.7; lp.connect(rev); rev.connect(wet); wet.connect(comp);
+      // Effekt-Kette mit kleinem Raumhall
       sfxGain = ctx.createGain(); sfxGain.gain.value = state.audio.sfxVolume; sfxGain.connect(ctx.destination);
+      sfxIn = ctx.createGain(); sfxIn.connect(sfxGain);
+      const srev = ctx.createConvolver(); srev.buffer = makeImpulse(1.4, 3);
+      const swet = ctx.createGain(); swet.gain.value = 0.3; sfxIn.connect(srev); srev.connect(swet); swet.connect(sfxGain);
+      // kurzer Rauschpuffer für Papier-/Karten-Geräusche
+      noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.4), ctx.sampleRate);
+      const nd = noiseBuf.getChannelData(0);
+      for(let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     }
     if(ctx.state === 'suspended') ctx.resume();
     return ctx;
   }
 
-  function startMusic(){
-    if(!ensureContext() || musicNodes) return;
-    const now = ctx.currentTime;
-    // ruhiger, offener Dreiklang (G-Dur), sehr leise mit langsamem Einblenden
-    const freqs = [196.00, 246.94, 293.66, 392.00];
-    const oscs = [], gains = [];
-    freqs.forEach((freq, i)=>{
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const g = ctx.createGain();
-      g.gain.value = 0;
-      osc.connect(g); g.connect(musicGain);
-      osc.start();
-      g.gain.linearRampToValueAtTime(0.11 / freqs.length, now + 3 + i*0.7);
-      oscs.push(osc); gains.push(g);
+  /* ---------- Instrumente ---------- */
+  // weiches "Filz-Klavier": Grundton + leise Obertöne, schneller Anschlag, langes Ausklingen
+  function pianoNote(freq, t, vel, dur, dest){
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vel, t + 0.012);
+    g.gain.exponentialRampToValueAtTime(vel * 0.35, t + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    g.connect(dest);
+    [[1, 'triangle', 1], [2, 'sine', 0.28], [3, 'sine', 0.09]].forEach(([mult, type, amp])=>{
+      const o = ctx.createOscillator();
+      o.type = type; o.frequency.value = freq * mult;
+      o.detune.value = rand(-4, 4);
+      const og = ctx.createGain(); og.gain.value = amp;
+      o.connect(og); og.connect(g);
+      o.start(t); o.stop(t + dur + 0.05);
     });
-    // sehr langsames "Atmen" der Lautstärke, damit es nicht statisch klingt
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.04;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 0.025;
-    lfo.connect(lfoGain); lfoGain.connect(musicGain.gain);
-    lfo.start();
-    // ganz leises, gefiltertes Rauschen im Hintergrund (wie fernes Blättern/Wind)
-    const bufferSize = 2 * ctx.sampleRate;
-    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-    const data = noiseBuffer.getChannelData(0);
-    for(let i=0;i<bufferSize;i++) data[i] = (Math.random()*2-1) * 0.4;
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer; noise.loop = true;
-    const noiseFilter = ctx.createBiquadFilter();
-    noiseFilter.type = 'lowpass'; noiseFilter.frequency.value = 700;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.value = 0;
-    noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(musicGain);
-    noise.start();
-    noiseGain.gain.linearRampToValueAtTime(0.045, now + 4);
+  }
+  // warmer Klangteppich, langsames Ein- und Ausblenden
+  function padChord(midis, t, dur, dest){
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 650; lp.connect(dest);
+    midis.forEach(m=>{
+      [-5, 5].forEach(det=>{
+        const o = ctx.createOscillator();
+        o.type = 'triangle'; o.frequency.value = mtof(m); o.detune.value = det;
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.028, t + 2.6);
+        g.gain.setValueAtTime(0.028, t + dur - 0.5);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 2.5);
+        o.connect(g); g.connect(lp);
+        o.start(t); o.stop(t + dur + 2.6);
+      });
+    });
+  }
+  function bassNote(midi, t, dur, dest){
+    const f = mtof(midi);
+    [[f, 'sine', 0.2], [f * 2, 'triangle', 0.07]].forEach(([fr, type, amp])=>{
+      const o = ctx.createOscillator(); o.type = type; o.frequency.value = fr;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(amp, t + 0.08);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(dest);
+      o.start(t); o.stop(t + dur + 0.05);
+    });
+  }
 
-    musicNodes = { oscs, gains, lfo, lfoGain, noise, noiseGain };
+  /* ---------- Musik: Akkordfolge in a-Moll / C-Dur, Arpeggien + sanfte Melodie ---------- */
+  const CHORDS = [
+    { bass: 45, tones: [57, 60, 64, 67, 71], pad: [57, 64, 67, 71] },   // Am9
+    { bass: 41, tones: [53, 57, 60, 64, 67], pad: [53, 60, 64, 67] },   // Fmaj7
+    { bass: 48, tones: [60, 64, 67, 71, 74], pad: [55, 64, 67, 71] },   // Cmaj9
+    { bass: 43, tones: [55, 59, 62, 64, 69], pad: [55, 62, 64, 71] }    // G6/9
+  ];
+  const ALT_LAST = { bass: 40, tones: [52, 55, 59, 62, 67], pad: [52, 59, 62, 67] }; // Em7 als Abwechslung
+  const MELODY = [67, 69, 72, 74, 76, 79, 81];
+  const BEAT = 0.95;          // ruhiges Tempo (~63 BPM)
+  const CHORD_BEATS = 8;
+
+  function scheduleChord(s, chord, t0){
+    const dest = s.fade;
+    bassNote(chord.bass, t0, CHORD_BEATS * BEAT * 0.95, dest);
+    padChord(chord.pad, t0, CHORD_BEATS * BEAT, dest);
+    // Arpeggio: Achtelraster, nicht jeder Schlag wird gespielt -> luftig, nie mechanisch
+    let last = -1;
+    for(let slot = 0; slot < CHORD_BEATS * 2; slot++){
+      const t = t0 + slot * BEAT / 2 + rand(-0.012, 0.012);
+      const strong = slot % 4 === 0;
+      if(!strong && Math.random() > 0.5) continue;
+      let idx = Math.floor(Math.random() * chord.tones.length);
+      if(idx === last) idx = (idx + 1) % chord.tones.length;
+      last = idx;
+      pianoNote(mtof(chord.tones[idx]), t, strong ? rand(0.13, 0.17) : rand(0.07, 0.12), 3.2, dest);
+    }
+    // gelegentlich eine ruhige, längere Melodienote
+    [2, 6, 10, 13].forEach(slot=>{
+      if(Math.random() < 0.55){
+        s.mel = Math.max(0, Math.min(MELODY.length - 1, (s.mel === undefined ? 3 : s.mel) + pick([-2, -1, -1, 1, 1, 2])));
+        pianoNote(mtof(MELODY[s.mel]), t0 + slot * BEAT / 2 + rand(0, 0.02), rand(0.11, 0.15), 4.5, dest);
+      }
+    });
+  }
+
+  function startMusic(){
+    if(!ensureContext() || session) return;
+    const fade = ctx.createGain();
+    fade.gain.setValueAtTime(0.0001, ctx.currentTime);
+    fade.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 4);
+    fade.connect(musicIn);
+    const s = { fade, timer: null, step: 0, next: ctx.currentTime + 0.3 };
+    session = s;
+    const loop = () => {
+      if(session !== s) return;
+      let chord = CHORDS[s.step % CHORDS.length];
+      if(s.step % CHORDS.length === 3 && Math.random() < 0.3) chord = ALT_LAST;
+      scheduleChord(s, chord, s.next);
+      s.next += CHORD_BEATS * BEAT;
+      s.step++;
+      const wait = Math.max(500, (s.next - ctx.currentTime - 1.5) * 1000);
+      s.timer = setTimeout(loop, wait);
+    };
+    loop();
   }
 
   function stopMusic(){
-    if(!musicNodes || !ctx) return;
+    if(!session || !ctx) return;
+    const s = session; session = null;
+    clearTimeout(s.timer);
     const now = ctx.currentTime;
-    musicNodes.gains.forEach(g=>{ try{ g.gain.cancelScheduledValues(now); g.gain.linearRampToValueAtTime(0, now+0.8); }catch(e){} });
-    try{ musicNodes.noiseGain.gain.cancelScheduledValues(now); musicNodes.noiseGain.gain.linearRampToValueAtTime(0, now+0.8); }catch(e){}
-    const toStop = musicNodes;
-    musicNodes = null;
-    setTimeout(()=>{
-      try{ toStop.oscs.forEach(o=>o.stop()); toStop.lfo.stop(); toStop.noise.stop(); }catch(e){}
-    }, 900);
+    try{ s.fade.gain.cancelScheduledValues(now); s.fade.gain.setValueAtTime(Math.max(s.fade.gain.value, 0.0001), now); s.fade.gain.exponentialRampToValueAtTime(0.0001, now + 1.2); }catch(e){}
   }
 
   function applyMusicState(){
@@ -651,26 +742,79 @@ const AudioEngine = (function(){
   function setMusicVolume(v){ state.audio.musicVolume = v; if(musicGain) musicGain.gain.value = v; }
   function setSfxVolume(v){ state.audio.sfxVolume = v; if(sfxGain) sfxGain.gain.value = v; }
 
-  function tone(freq, duration, type, peak){
-    if(!state.audio.sfxEnabled || !ensureContext()) return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = type || 'sine';
-    osc.frequency.value = freq;
+  /* ---------- Soundeffekte ---------- */
+  function sfxOn(){ return state.audio.sfxEnabled && ensureContext(); }
+
+  // glockenartiger, warmer Ton (Marimba/Glockenspiel-Mischung)
+  function chime(midi, t, peak, dur){
+    const f = mtof(midi);
+    [[1, 1], [2, 0.32], [3, 0.12], [4.2, 0.05]].forEach(([mult, amp])=>{
+      const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f * mult;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak * amp, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur / mult);
+      o.connect(g); g.connect(sfxIn);
+      o.start(t); o.stop(t + dur + 0.05);
+    });
+  }
+  function swoosh(t, from, to, peak, dur){
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.9;
+    bp.frequency.setValueAtTime(from, t); bp.frequency.exponentialRampToValueAtTime(to, t + dur);
     const g = ctx.createGain();
-    g.gain.value = 0;
-    osc.connect(g); g.connect(sfxGain);
-    osc.start(now);
-    g.gain.linearRampToValueAtTime(peak||0.18, now+0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, now+duration);
-    osc.stop(now+duration+0.05);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(bp); bp.connect(g); g.connect(sfxIn);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+  function thump(t, f0, f1, peak, dur){
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(sfxIn); o.start(t); o.stop(t + dur + 0.02);
   }
 
-  function playFlip(){ tone(520, 0.16, 'sine', 0.14); }
-  function playCorrect(){ tone(523.25, 0.13, 'sine', 0.16); setTimeout(()=>tone(783.99, 0.2, 'sine', 0.13), 85); }
-  function playIncorrect(){ tone(174, 0.26, 'sine', 0.13); }
+  // Karte umdrehen: leises Papier-Wischen + weiches "Tock"
+  function playFlip(){
+    if(!sfxOn()) return; const t = ctx.currentTime;
+    swoosh(t, 2600, 900, 0.30, 0.14);
+    thump(t + 0.1, 190, 110, 0.22, 0.09);
+  }
+  // Richtig: aufsteigendes, funkelndes Glockenspiel-Arpeggio
+  function playCorrect(){
+    if(!sfxOn()) return; const t = ctx.currentTime;
+    [72, 76, 79, 84].forEach((m, i)=> chime(m, t + i * 0.075, 0.2 - i * 0.02, i === 3 ? 1.6 : 0.9));
+    chime(91, t + 0.3, 0.05, 1.2);
+  }
+  // Falsch: weiches, tiefes "Blub" ohne Schärfe
+  function playIncorrect(){
+    if(!sfxOn()) return; const t = ctx.currentTime;
+    const o = ctx.createOscillator(); o.type = 'triangle';
+    o.frequency.setValueAtTime(330, t); o.frequency.exponentialRampToValueAtTime(220, t + 0.28);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.28, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+    o.connect(lp); lp.connect(g); g.connect(sfxIn); o.start(t); o.stop(t + 0.45);
+  }
+  // Gespeichert: kleines, freundliches "Ding-Ding"
+  function playSave(){
+    if(!sfxOn()) return; const t = ctx.currentTime;
+    chime(79, t, 0.18, 0.7); chime(86, t + 0.09, 0.16, 1.1);
+  }
+  // Tab-Wechsel: kaum hörbares, sanftes Tippen
+  function playTick(){
+    if(!sfxOn()) return; const t = ctx.currentTime;
+    thump(t, 520, 340, 0.10, 0.06);
+  }
 
-  // Der erste Klick irgendwo auf der Seite "entsperrt" den AudioContext (Browser-Autoplay-Regel)
+  // Der erste Tipp/Klick entsperrt den AudioContext (Browser-Autoplay-Regel, besonders streng auf iPad)
   function unlockOnFirstInteraction(){
     if(unlocked) return;
     unlocked = true;
@@ -678,9 +822,10 @@ const AudioEngine = (function(){
     applyMusicState();
   }
   document.addEventListener('click', unlockOnFirstInteraction, { once:true });
+  document.addEventListener('touchend', unlockOnFirstInteraction, { once:true });
   document.addEventListener('keydown', unlockOnFirstInteraction, { once:true });
 
-  return { ensureContext, applyMusicState, setMusicVolume, setSfxVolume, playFlip, playCorrect, playIncorrect };
+  return { ensureContext, applyMusicState, setMusicVolume, setSfxVolume, playFlip, playCorrect, playIncorrect, playSave, playTick };
 })();
 
 function folderName(id){ if(!id) return null; const f = state.folders.find(x=>x.id===id); return f ? f.name : null; }
@@ -1026,6 +1171,7 @@ function bindProfileDropdownEvents(){
 
 function setActiveTab(tab){
   if((tab==='practice' || tab==='test') && state.pool.length===0) return;
+  if(state.activeTab !== tab) AudioEngine.playTick();
   state.activeTab = tab;
   document.querySelectorAll('nav.tabs button').forEach(b=> b.classList.toggle('active', b.dataset.tab===tab));
   render();
@@ -1567,6 +1713,7 @@ function bindAddTabEvents(){
       await loadPool();
       resetDraft();
       state.draftFolderIds = keepFolderIds;
+      AudioEngine.playSave();
       render();
     }catch(err){
       console.error(err);
