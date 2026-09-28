@@ -212,6 +212,21 @@ textarea{ resize:vertical; font-family:inherit; }
 .pool-item.selectable:hover{ border-color:var(--accent); }
 .pool-item.selected{ background:var(--accent-tint); border-color:var(--accent); }
 .bulk-bar{ gap:12px; padding:8px 12px; }
+.bulk-folder{ position:relative; }
+.bulk-folder-btn{ display:flex; align-items:center; gap:8px; height:40px; padding:0 14px; border-radius:8px; border:1px solid var(--accent); background:#fffdf7; color:var(--accent-dark); font-size:14px; font-weight:600; }
+.bulk-folder-btn:hover, .bulk-folder-btn.open{ background:var(--accent-tint); }
+.folder-menu{ position:absolute; top:46px; left:0; z-index:30; min-width:260px; max-width:min(340px, 80vw); background:var(--card); border:1px solid var(--card-edge); border-radius:10px; box-shadow:var(--shadow); padding:6px; }
+.folder-menu-title{ font-size:12px; color:var(--ink-faint); padding:8px 10px 6px; }
+.folder-menu-empty{ font-size:13px; color:var(--ink-soft); padding:10px; }
+.folder-menu-item{ display:flex; align-items:center; gap:12px; width:100%; padding:10px; border:none; background:transparent; border-radius:8px; text-align:left; font-size:14px; color:var(--ink); min-height:44px; }
+.folder-menu-item:hover{ background:var(--accent-tint); }
+.folder-menu-item.busy{ opacity:0.5; }
+.fm-box{ flex-shrink:0; width:22px; height:22px; border-radius:6px; border:1.5px solid var(--card-edge); background:#fffdf7; display:flex; align-items:center; justify-content:center; color:#fdf6ea; }
+.fm-box.full, .fm-box.part{ background:var(--accent); border-color:var(--accent); }
+.fm-name{ flex:1; font-weight:600; }
+.fm-count{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-faint); }
+.toast{ position:fixed; left:50%; bottom:28px; transform:translate(-50%, 16px); background:#2b2117; color:#fdf6ea; padding:11px 20px; border-radius:999px; font-size:14px; box-shadow:0 6px 20px rgba(0,0,0,0.25); opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:200; max-width:90vw; text-align:center; }
+.toast.show{ opacity:1; transform:translate(-50%, 0); }
 .bulk-count{ font-size:13px; font-weight:600; color:var(--accent-dark); }
 .bulk-clear{ width:30px; height:30px; border-radius:50%; border:none; background:transparent; color:var(--accent-dark); display:flex; align-items:center; justify-content:center; padding:0; }
 .bulk-clear:hover{ background:rgba(143,47,47,0.12); }
@@ -351,7 +366,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
-    <div class="version-tag">Version 28.09. · Auswahl v3</div>
+    <div class="version-tag">Version 28.09. · Auswahl v4</div>
     <div class="header-actions">
       <div class="settings-bar" id="settingsBar"></div>
       <div class="account-bar" id="accountBar"></div>
@@ -452,7 +467,7 @@ const state = {
   poolSelected: {},
   poolSelectMode: false,
   poolPage: 1,
-  bulkTargetFolder: '',
+  folderMenuOpen: false,
   dictSuggestions: [],
   dictActiveIndex: -1,
   practice: { order: [], idx: 0, flipped: false, folderId: '' },
@@ -1207,6 +1222,13 @@ document.addEventListener('click', e=>{
       render();
     }
   }
+  if(state.folderMenuOpen){
+    const insideFolder = path.some(node => node.classList && node.classList.contains('bulk-folder'));
+    if(!insideFolder){
+      state.folderMenuOpen = false;
+      render();
+    }
+  }
   if(state.settingsMenuOpen){
     const insideSettings = path.some(node => node.classList && node.classList.contains('settings-bar'));
     if(!insideSettings){
@@ -1754,6 +1776,17 @@ function sortedPool(list){
 }
 
 const POOL_PAGE_SIZE = 15;
+let bulkFolderBusy = false;
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+function showToast(msg){
+  let el = document.getElementById('toast');
+  if(!el){ el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; el.setAttribute('role','status'); document.body.appendChild(el); }
+  el.textContent = msg;
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=> el.classList.remove('show'), 2800);
+}
 
 function renderPoolTab(){
   const allEntries = sortedPool(
@@ -1786,22 +1819,35 @@ function renderPoolTab(){
 
   const ICON = {
     x: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
-    plus: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
-    minus: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    chevron: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+    check: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    minus: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 12h12"/></svg>',
     trash: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>'
   };
-  const noFolder = !state.bulkTargetFolder ? 'disabled' : '';
-  const bulkBar = (state.poolSelectMode && selectedIds.length) ? `
+  const hasBar = state.poolSelectMode && selectedIds.length > 0;
+  if(!hasBar) state.folderMenuOpen = false;
+  const folderRows = state.folders.map(f=>{
+    const n = selectedIds.filter(id=>{ const v = state.pool.find(x=>x.id===id); return v && (v.folderIds||[]).includes(f.id); }).length;
+    const st = n === 0 ? 'none' : (n === selectedIds.length ? 'full' : 'part');
+    return `<button type="button" class="folder-menu-item" data-bulk-folder="${f.id}">
+      <span class="fm-box ${st}">${st==='full' ? ICON.check : st==='part' ? ICON.minus : ''}</span>
+      <span class="fm-name">${escapeHtml(f.name)}</span>
+      <span class="fm-count">${n} / ${selectedIds.length}</span>
+    </button>`;
+  }).join('');
+  const folderMenu = state.folderMenuOpen ? `
+    <div class="folder-menu">
+      <div class="folder-menu-title">${plural(selectedIds.length, 'Vokabel', 'Vokabeln')} in Ordner ablegen</div>
+      ${folderRows || '<div class="folder-menu-empty">Noch keine Ordner. Lege unten unter „Ordner verwalten" einen an.</div>'}
+    </div>` : '';
+  const bulkBar = hasBar ? `
     <div class="bulk-bar">
       <button type="button" class="bulk-clear" id="bulkClearBtn" title="Auswahl aufheben" aria-label="Auswahl aufheben">${ICON.x}</button>
       <span class="bulk-count">${selectedIds.length} ausgewählt</span>
-      <div class="bulk-group">
-        <select id="bulkFolderSelect" aria-label="Ordner">
-          <option value="" ${!state.bulkTargetFolder?'selected':''}>Ordner…</option>
-          ${state.folders.map(f=>`<option value="${f.id}" ${state.bulkTargetFolder===f.id?'selected':''}>${escapeHtml(f.name)}</option>`).join('')}
-        </select>
-        <button type="button" id="bulkAddBtn" title="Zum Ordner hinzufügen" aria-label="Zum Ordner hinzufügen" ${noFolder}>${ICON.plus}</button>
-        <button type="button" id="bulkRemoveBtn" title="Aus Ordner entfernen" aria-label="Aus Ordner entfernen" ${noFolder}>${ICON.minus}</button>
+      <div class="bulk-folder">
+        <button type="button" class="bulk-folder-btn ${state.folderMenuOpen?'open':''}" id="bulkFolderBtn">${ICON.folder}<span>Ordner</span>${ICON.chevron}</button>
+        ${folderMenu}
       </div>
       <button type="button" class="bulk-delete" id="bulkDeleteBtn" title="Ausgewählte löschen" aria-label="Ausgewählte löschen">${ICON.trash}</button>
     </div>
@@ -1904,30 +1950,37 @@ function bindPoolTabEvents(){
     });
     render();
   });
-  const bulkFolderSelect = document.getElementById('bulkFolderSelect');
-  if(bulkFolderSelect) bulkFolderSelect.addEventListener('change', e=>{
-    state.bulkTargetFolder = e.target.value;
-    ['bulkAddBtn','bulkRemoveBtn'].forEach(id=>{ const b = document.getElementById(id); if(b) b.disabled = !state.bulkTargetFolder; });
-  });
-  const bulkAddBtn = document.getElementById('bulkAddBtn');
-  if(bulkAddBtn) bulkAddBtn.addEventListener('click', async ()=>{
-    const ids = Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
-    if(ids.length===0 || !state.bulkTargetFolder) return;
-    try{
-      await bulkAddToFolder(ids, state.bulkTargetFolder);
-      await loadPool();
+  const bulkFolderBtn = document.getElementById('bulkFolderBtn');
+  if(bulkFolderBtn) bulkFolderBtn.addEventListener('click', ()=>{ state.folderMenuOpen = !state.folderMenuOpen; render(); });
+  document.querySelectorAll('[data-bulk-folder]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      if(bulkFolderBusy) return;
+      const fid = btn.dataset.bulkFolder;
+      const ids = Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
+      if(ids.length === 0) return;
+      const name = folderName(fid) || 'Ordner';
+      const already = ids.filter(id=>{ const v = state.pool.find(x=>x.id===id); return v && (v.folderIds||[]).includes(fid); });
+      const removing = already.length === ids.length;
+      bulkFolderBusy = true;
+      btn.classList.add('busy');
+      try{
+        if(removing){
+          await bulkRemoveFromFolder(ids, fid);
+          AudioEngine.playTick();
+          showToast(plural(ids.length, 'Vokabel', 'Vokabeln') + ' aus „' + name + '“ entfernt');
+        } else {
+          const missing = ids.filter(id=>!already.includes(id));
+          await bulkAddToFolder(missing, fid);
+          AudioEngine.playSave();
+          showToast(plural(missing.length, 'Vokabel', 'Vokabeln') + ' zu „' + name + '“ hinzugefügt');
+        }
+        await loadPool();
+      }catch(err){
+        console.error(err);
+        showToast('Das hat nicht geklappt: ' + err.message);
+      }finally{ bulkFolderBusy = false; }
       render();
-    }catch(err){ console.error(err); alert('Hinzufügen fehlgeschlagen: ' + err.message); }
-  });
-  const bulkRemoveBtn = document.getElementById('bulkRemoveBtn');
-  if(bulkRemoveBtn) bulkRemoveBtn.addEventListener('click', async ()=>{
-    const ids = Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
-    if(ids.length===0 || !state.bulkTargetFolder) return;
-    try{
-      await bulkRemoveFromFolder(ids, state.bulkTargetFolder);
-      await loadPool();
-      render();
-    }catch(err){ console.error(err); alert('Entfernen fehlgeschlagen: ' + err.message); }
+    });
   });
   const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
   if(bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', async ()=>{
@@ -1941,10 +1994,11 @@ function bindPoolTabEvents(){
       state.poolSelected = {};
       await loadPool();
       render();
+      showToast(plural(ids.length, 'Vokabel', 'Vokabeln') + ' gelöscht');
     }catch(err){ console.error(err); alert('Löschen fehlgeschlagen: ' + err.message); }
   });
   const bulkClearBtn = document.getElementById('bulkClearBtn');
-  if(bulkClearBtn) bulkClearBtn.addEventListener('click', ()=>{ state.poolSelected = {}; render(); });
+  if(bulkClearBtn) bulkClearBtn.addEventListener('click', ()=>{ state.poolSelected = {}; state.folderMenuOpen = false; render(); });
 
   document.getElementById('createFolderBtn').addEventListener('click', async ()=>{
     const nameInput = document.getElementById('newFolderName');
@@ -1960,7 +2014,6 @@ function bindPoolTabEvents(){
         await deleteFolderRow(fid);
         state.draftFolderIds = state.draftFolderIds.filter(id=>id!==fid);
         if(state.poolFolderFilter===fid) state.poolFolderFilter = '';
-        if(state.bulkTargetFolder===fid) state.bulkTargetFolder = '';
         await loadPool();
         render();
       }catch(err){ console.error(err); }
