@@ -211,13 +211,22 @@ textarea{ resize:vertical; font-family:inherit; }
 .pool-item.selectable{ cursor:pointer; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
 .pool-item.selectable:hover{ border-color:var(--accent); }
 .pool-item.selected{ background:var(--accent-tint); border-color:var(--accent); }
-.bulk-count{ font-size:13px; font-weight:600; color:var(--accent-dark); white-space:nowrap; margin-right:4px; }
 .bulk-btn{ display:flex; align-items:center; gap:7px; height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--accent); background:#fffdf7; color:var(--accent-dark); font-size:14px; font-weight:600; white-space:nowrap; }
 .bulk-btn:hover, .bulk-btn.open{ background:var(--accent-tint); }
 .bulk-btn-label{ white-space:nowrap; }
 .folder-menu{ position:absolute; top:46px; left:0; z-index:30; min-width:220px; max-width:min(320px, 80vw); background:var(--card); border:1px solid var(--card-edge); border-radius:10px; box-shadow:var(--shadow); padding:6px; }
-@media (max-width:400px){ .bulk-count-word{ display:none; } .bulk-bar{ gap:6px; padding:8px; } }
-@media (max-width:520px){ .bulk-btn-label{ display:none; } .bulk-btn{ padding:0 10px; } .bulk-count{ font-size:12px; } }
+.bulk-count{ font-size:13px; font-weight:600; color:var(--accent-dark); white-space:nowrap; margin-right:4px; }
+.bulk-hint{ font-size:12.5px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.select-menu{ max-height:min(62vh, 440px); overflow-y:auto; min-width:230px; }
+.menu-group{ font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-faint); padding:10px 10px 4px; }
+.menu-sep{ height:1px; background:var(--card-edge); margin:6px 4px; }
+.fm-box{ flex-shrink:0; width:22px; height:22px; border-radius:6px; border:1.5px solid var(--card-edge); background:#fffdf7; display:flex; align-items:center; justify-content:center; color:#fdf6ea; }
+.fm-box.full, .fm-box.part{ background:var(--accent); border-color:var(--accent); }
+.fm-box.plain{ visibility:hidden; }
+@container (max-width: 620px){ .bulk-btn-label{ display:none; } .bulk-btn{ padding:0 10px; } .bulk-hint{ display:none; } }
+@container (max-width: 400px){ .bulk-count-word{ display:none; } .bulk-bar{ gap:4px; padding:7px 8px; } .bulk-btn{ padding:0 7px; } }
+@media (max-width:620px){ .bulk-btn-label{ display:none; } .bulk-btn{ padding:0 10px; } .bulk-hint{ display:none; } }
+@media (max-width:400px){ .bulk-count-word{ display:none; } .bulk-bar{ gap:4px; padding:7px 8px; } .bulk-btn{ padding:0 7px; } }
 .bulk-clear{ width:30px; height:30px; border-radius:50%; border:none; background:transparent; color:var(--accent-dark); display:flex; align-items:center; justify-content:center; padding:0; }
 .bulk-clear:hover{ background:rgba(143,47,47,0.12); }
 .bulk-btn:hover, .bulk-btn.open{ background:var(--accent-tint); }
@@ -251,12 +260,11 @@ textarea{ resize:vertical; font-family:inherit; }
 .dict-suggestion-item .dsi-word{ font-weight:600; color:var(--accent-dark); min-width:90px; }
 .dict-suggestion-item .dsi-type{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; text-transform:uppercase; color:var(--gold); flex-shrink:0; }
 .dict-suggestion-item .dsi-meaning{ color:var(--ink-faint); flex:1; text-align:left; }
-.select-all-row{ font-size:12.5px; color:var(--ink-soft); margin:2px 0 10px; }
-.select-all-row label{ display:flex; align-items:center; gap:6px; cursor:pointer; }
 .bulk-bar{
   display:flex; align-items:center; gap:10px; flex-wrap:nowrap;
   background:var(--accent-tint); border:1px solid var(--accent); border-radius:8px;
   padding:8px 12px; margin-bottom:12px; font-size:13px; color:var(--accent-dark);
+  position:relative; z-index:5; container-type:inline-size;
 }
 
 .pagination-row{ display:flex; align-items:center; justify-content:center; gap:14px; margin-top:12px; font-size:13px; color:var(--ink-soft); }
@@ -362,7 +370,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
-    <div class="version-tag">Version 28.09. · Auswahl v7</div>
+    <div class="version-tag">Version 28.09. · Auswahl v8</div>
     <div class="header-actions">
       <div class="settings-bar" id="settingsBar"></div>
       <div class="account-bar" id="accountBar"></div>
@@ -1792,12 +1800,50 @@ function showToast(msg, action){
   el._t = setTimeout(()=> el.classList.remove('show'), action ? 7000 : 2800);
 }
 
-function renderPoolTab(){
-  const allEntries = sortedPool(
+function getPoolView(){
+  return sortedPool(
     state.pool
       .filter(v => v.latin.toLowerCase().includes(state.poolFilter.toLowerCase()))
       .filter(v => !state.poolFolderFilter || (v.folderIds||[]).includes(state.poolFolderFilter))
   );
+}
+
+/* Auswahl-Umfänge: beziehen sich immer auf das, was gerade in der Liste "gemeint" ist (Suche/Ordner-Filter über alle Seiten).
+   Es werden nur Einträge angeboten, die es gibt und die sich von "Alle" unterscheiden. */
+const TYPE_PLURAL = { verb: 'Verben', noun: 'Substantive', adjective: 'Adjektive', other: 'Sonstige' };
+function buildSelectScopes(){
+  const view = getPoolView();
+  const start = (state.poolPage - 1) * POOL_PAGE_SIZE;
+  const page = view.slice(start, start + POOL_PAGE_SIZE);
+  const filtered = !!(state.poolFilter || state.poolFolderFilter);
+  const ids = list => list.map(v => v.id);
+  const differs = sc => sc.ids.length > 0 && sc.ids.length < view.length;
+  const general = [];
+  if(view.length > page.length) general.push({ key:'page', label:'Diese Seite', ids: ids(page) });
+  general.push({ key:'all', label: filtered ? 'Alle Treffer' : 'Alle Vokabeln', ids: ids(view) });
+  const types = Object.keys(TYPE_PLURAL)
+    .map(t => ({ key:'type:' + t, label: TYPE_PLURAL[t], ids: ids(view.filter(v => v.type === t)) })).filter(differs);
+  const folders = state.folders
+    .map(f => ({ key:'folder:' + f.id, label: f.name, ids: ids(view.filter(v => (v.folderIds||[]).includes(f.id))) })).filter(differs);
+  const none = { key:'nofolder', label:'Ohne Ordner', ids: ids(view.filter(v => !(v.folderIds||[]).length)) };
+  if(differs(none) && state.folders.length) folders.push(none);
+  return { view, general, types, folders };
+}
+function applySelectScope(key){
+  const sc = buildSelectScopes();
+  if(key === 'none'){ state.poolSelected = {}; return; }
+  if(key === 'invert'){
+    sc.view.forEach(v => { if(state.poolSelected[v.id]) delete state.poolSelected[v.id]; else state.poolSelected[v.id] = true; });
+    return;
+  }
+  const item = sc.general.concat(sc.types, sc.folders).find(x => x.key === key);
+  if(!item) return;
+  const allOn = item.ids.every(id => state.poolSelected[id]);
+  item.ids.forEach(id => { if(allOn) delete state.poolSelected[id]; else state.poolSelected[id] = true; });
+}
+
+function renderPoolTab(){
+  const allEntries = getPoolView();
   const totalPages = Math.max(1, Math.ceil(allEntries.length / POOL_PAGE_SIZE));
   if(state.poolPage > totalPages) state.poolPage = totalPages;
   if(state.poolPage < 1) state.poolPage = 1;
@@ -1819,10 +1865,12 @@ function renderPoolTab(){
     `).join('');
 
   const selectedIds = Object.keys(state.poolSelected).filter(id => state.poolSelected[id] && state.pool.some(v=>v.id===id));
-  const allVisibleSelected = listEntries.length>0 && listEntries.every(v=>state.poolSelected[v.id]);
 
   const ICON = {
     x: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    checks: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.3 12.4l2.6 2.6 4.8-5.4"/></svg>',
+    check: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    dash: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 12h12"/></svg>',
     plus: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     folder: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     chevron: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
@@ -1831,7 +1879,7 @@ function renderPoolTab(){
     trash: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>'
   };
   const hasBar = state.poolSelectMode && selectedIds.length > 0;
-  if(!hasBar) state.folderMenuOpen = false;
+  if(!state.poolSelectMode || (!hasBar && state.folderMenuOpen !== 'select')) state.folderMenuOpen = false;
   const countIn = fid => selectedIds.filter(id=>{ const v = state.pool.find(x=>x.id===id); return v && (v.folderIds||[]).includes(fid); }).length;
   const folderItem = (attr, f) => `<button type="button" class="folder-menu-item" ${attr}="${f.id}">
       <span class="fm-icon">${ICON.folder}</span><span class="fm-name">${escapeHtml(f.name)}</span>
@@ -1849,8 +1897,28 @@ function renderPoolTab(){
       <div class="folder-menu-title">Aus welchem Ordner entfernen?</div>
       ${removeRows}
     </div>` : '';
-  const bulkBar = hasBar ? `
+  const stateOf = ids => { const n = ids.filter(id => state.poolSelected[id]).length; return n === 0 ? '' : (n === ids.length ? 'full' : 'part'); };
+  const scopeItem = it => { const st = stateOf(it.ids); return `<button type="button" class="folder-menu-item" data-select-scope="${escapeHtml(it.key)}">
+      <span class="fm-box ${st}">${st==='full' ? ICON.check : st==='part' ? ICON.dash : ''}</span><span class="fm-name">${escapeHtml(it.label)}</span>
+    </button>`; };
+  const selectMenu = state.folderMenuOpen === 'select' ? (() => {
+    const sc = buildSelectScopes();
+    return `<div class="folder-menu select-menu">
+      ${sc.general.map(scopeItem).join('')}
+      ${sc.types.length ? `<div class="menu-group">Wortart</div>${sc.types.map(scopeItem).join('')}` : ''}
+      ${sc.folders.length ? `<div class="menu-group">Ordner</div>${sc.folders.map(scopeItem).join('')}` : ''}
+      <div class="menu-sep"></div>
+      <button type="button" class="folder-menu-item" data-select-scope="invert"><span class="fm-box plain"></span><span class="fm-name">Auswahl umkehren</span></button>
+      ${selectedIds.length ? `<button type="button" class="folder-menu-item" data-select-scope="none"><span class="fm-box plain"></span><span class="fm-name">Keine auswählen</span></button>` : ''}
+    </div>`;
+  })() : '';
+  const bulkBar = state.poolSelectMode ? `
     <div class="bulk-bar">
+      <div class="bulk-folder">
+        <button type="button" class="bulk-btn ${state.folderMenuOpen==='select'?'open':''}" id="bulkSelectBtn" title="Mehrere auf einmal auswählen">${ICON.checks}<span class="bulk-btn-label">Auswählen</span>${ICON.chevron}</button>
+        ${selectMenu}
+      </div>
+      ${hasBar ? `
       <button type="button" class="bulk-clear" id="bulkClearBtn" title="Auswahl aufheben" aria-label="Auswahl aufheben">${ICON.x}</button>
       <span class="bulk-count">${selectedIds.length}<span class="bulk-count-word"> ausgewählt</span></span>
       <div class="bulk-folder">
@@ -1862,6 +1930,7 @@ function renderPoolTab(){
         ${removeMenu}
       </div>` : ''}
       <button type="button" class="bulk-delete" id="bulkDeleteBtn" title="Ausgewählte löschen" aria-label="Ausgewählte löschen">${ICON.trash}</button>
+      ` : `<span class="bulk-hint">Vokabeln antippen oder darüber ziehen</span>`}
     </div>
   ` : '';
 
@@ -1892,11 +1961,6 @@ function renderPoolTab(){
             <option value="created" ${state.poolSort==='created'?'selected':''}>Zuletzt hinzugefügt</option>
           </select>
         </div>
-        ${state.poolSelectMode ? `
-        <div class="select-all-row">
-          <label><input type="checkbox" id="selectAllPool" ${allVisibleSelected?'checked':''}> Alle sichtbaren auswählen</label>
-        </div>
-        ` : ''}
         ${bulkBar}
       ` : ''}
       <div class="pool-list">
@@ -1954,13 +2018,15 @@ function bindPoolTabEvents(){
   if(poolNextPage) poolNextPage.addEventListener('click', ()=>{ state.poolPage += 1; render(); });
 
   if(state.poolSelectMode) bindPoolDragSelect();
-  const selectAll = document.getElementById('selectAllPool');
-  if(selectAll) selectAll.addEventListener('change', e=>{
-    document.querySelectorAll('[data-select-vocab]').forEach(cb=>{
-      if(e.target.checked) state.poolSelected[cb.dataset.selectVocab] = true;
-      else delete state.poolSelected[cb.dataset.selectVocab];
+  const bulkSelectBtn = document.getElementById('bulkSelectBtn');
+  if(bulkSelectBtn) bulkSelectBtn.addEventListener('click', ()=>{ state.folderMenuOpen = state.folderMenuOpen === 'select' ? false : 'select'; render(); });
+  document.querySelectorAll('[data-select-scope]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const key = btn.dataset.selectScope;
+      applySelectScope(key);
+      if(key === 'none') state.folderMenuOpen = false;
+      render();
     });
-    render();
   });
   const bulkFolderBtn = document.getElementById('bulkFolderBtn');
   if(bulkFolderBtn) bulkFolderBtn.addEventListener('click', ()=>{ state.folderMenuOpen = state.folderMenuOpen === 'add' ? false : 'add'; render(); });
