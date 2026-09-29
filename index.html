@@ -236,23 +236,6 @@ textarea{ resize:vertical; font-family:inherit; }
 .toast-action{ border:none; background:transparent; color:#f0c987; font-weight:700; font-size:14px; padding:6px 4px; text-decoration:underline; text-underline-offset:3px; }
 .btn.danger{ background:#8f2f2f; border-color:#8f2f2f; color:#fdf6ea; }
 .btn.danger:hover{ background:#6e2020; }
-/* ---- Online-Latein-Wörterbuch / Auto-Fill ---- */
-.latin-autofill-status{
-  margin-top:7px; min-height:18px; font-size:12px; color:var(--ink-faint);
-  display:flex; align-items:center; gap:7px;
-}
-.latin-autofill-status.loading{ color:var(--gold); }
-.latin-autofill-status.success{ color:var(--success); }
-.latin-autofill-status.error{ color:var(--error); }
-.autofill-dot{
-  width:7px; height:7px; border-radius:50%; background:currentColor; display:inline-block; flex-shrink:0;
-}
-.autofill-spinner{
-  width:11px; height:11px; border:1.5px solid currentColor; border-top-color:transparent;
-  border-radius:50%; display:inline-block; animation:autofillSpin .7s linear infinite;
-}
-@keyframes autofillSpin{ to{ transform:rotate(360deg); } }
-
 .dict-suggestions{
   position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:30;
   display:flex; flex-direction:column; gap:2px;
@@ -574,297 +557,31 @@ async function deleteFolderRow(id){
   if(error) throw error;
 }
 
-/* ---- Online Latin dictionary / automatic principal-parts lookup ----
-   The form remains a single HTML file.  Instead of maintaining a hand-written
-   dictionary.csv, the page queries the free LatinDictionary.io API, which is
-   powered by Whitaker's Words.  A local dictionary.csv is still supported as
-   an optional offline/fallback source if one is present next to index.html.
-*/
-const LATIN_API_BASE = 'https://api.latindictionary.io/api/v1';
+/* ---- Shared dictionary: a static CSV file living next to index.html on GitHub Pages.
+   Everyone who visits the site loads the same file — no per-user upload needed.
+   To update it, just edit dictionary.csv in the GitHub repo (e.g. via GitHub's
+   web editor) and commit; every visitor gets the new version on their next load. */
 let DICTIONARY_CACHE = null;
 let DICTIONARY_LOAD_ERROR = false;
-let latinLookupTimer = null;
-let latinLookupRequestId = 0;
-
 async function loadDictionary(){
-  /* Optional compatibility fallback: if the old dictionary.csv exists, use it
-     for instant suggestions while the online lookup remains the primary source. */
-  if(DICTIONARY_CACHE !== null) return DICTIONARY_CACHE;
+  if(DICTIONARY_CACHE) return DICTIONARY_CACHE;
   try{
     const res = await fetch('dictionary.csv', { cache: 'no-cache' });
-    if(!res.ok) throw new Error('optional dictionary.csv not found');
+    if(!res.ok){ DICTIONARY_CACHE = []; DICTIONARY_LOAD_ERROR = true; return DICTIONARY_CACHE; }
     const text = await res.text();
     DICTIONARY_CACHE = csvToDictionaryRows(text);
   }catch(e){
+    console.error('Wörterbuch konnte nicht geladen werden:', e);
     DICTIONARY_CACHE = [];
     DICTIONARY_LOAD_ERROR = true;
   }
+  if(state.activeTab === 'pool') render();
   return DICTIONARY_CACHE;
 }
-
 function searchDictionaryLocal(prefix){
   const p = (prefix||'').trim().toLowerCase();
   if(!p || !DICTIONARY_CACHE) return [];
   return DICTIONARY_CACHE.filter(r => r.latin.toLowerCase().startsWith(p)).slice(0, 8);
-}
-
-function latinApiUrl(path){
-  return LATIN_API_BASE + path;
-}
-
-function setLatinAutofillStatus(kind, message){
-  const el = document.getElementById('latinAutofillStatus');
-  if(!el) return;
-  el.className = 'latin-autofill-status ' + (kind || '');
-  if(kind === 'loading'){
-    el.innerHTML = '<span class="autofill-spinner"></span><span>' + escapeHtml(message || 'Lateinisches Wörterbuch wird durchsucht…') + '</span>';
-  }else if(kind === 'success'){
-    el.innerHTML = '<span class="autofill-dot"></span><span>' + escapeHtml(message || 'Formen automatisch ergänzt.') + '</span>';
-  }else if(kind === 'error'){
-    el.innerHTML = '<span class="autofill-dot"></span><span>' + escapeHtml(message || '') + '</span>';
-  }else{
-    el.innerHTML = message ? '<span>' + escapeHtml(message) + '</span>' : '';
-  }
-}
-
-/* Recursively searches an API response for a gender value. */
-function findGenderInObject(value){
-  const seen = new Set();
-  function walk(v, parentKey=''){
-    if(v === null || v === undefined) return '';
-    if(typeof v === 'string'){
-      const s = v.trim().toLowerCase();
-      if(parentKey.toLowerCase().includes('gender') || parentKey.toLowerCase().includes('genus')){
-        if(/\b(fem|feminine|f)\b/.test(s)) return 'f';
-        if(/\b(masc|masculine|m)\b/.test(s)) return 'm';
-        if(/\b(neut|neuter|n)\b/.test(s)) return 'n';
-      }
-      return '';
-    }
-    if(typeof v !== 'object' || seen.has(v)) return '';
-    seen.add(v);
-    for(const [k,val] of Object.entries(v)){
-      const got = walk(val, k);
-      if(got) return got;
-    }
-    return '';
-  }
-  return walk(value);
-}
-
-function cleanPrincipalParts(hdwd){
-  if(!hdwd) return [];
-  return String(hdwd)
-    .replace(/\([^)]*\)/g,'')
-    .split(',')
-    .map(s=>s.trim())
-    .filter(Boolean);
-}
-
-function typeFromPofs(pofs){
-  const p = String(pofs||'').toLowerCase();
-  if(p.includes('verb')) return 'verb';
-  if(p.includes('noun')) return 'noun';
-  if(p.includes('adjective') || p.includes('adject')) return 'adjective';
-  return 'other';
-}
-
-function meaningArrayFromApi(entry){
-  const raw = entry && entry.mean;
-  if(Array.isArray(raw)) return raw.flatMap(x=>String(x).split(';')).map(x=>x.trim()).filter(Boolean).slice(0,6);
-  return String(raw||'').split(';').map(x=>x.trim()).filter(Boolean).slice(0,6);
-}
-
-function chooseApiResult(data, input){
-  const results = Array.isArray(data?.results) ? data.results : [];
-  if(!results.length) return null;
-  const normalized = normalize(input);
-  return results.find(r=>{
-    const hd = String(r?.entry?.hdwd||'').split(',')[0].trim().toLowerCase();
-    return normalize(hd) === normalized;
-  }) || results[0];
-}
-
-function entryFromInflectionResult(result, analysisData, input){
-  if(!result || !result.entry) return null;
-  const entry = result.entry;
-  const pofs = entry.pofs || '';
-  const type = typeFromPofs(pofs);
-  const parts = cleanPrincipalParts(entry.hdwd);
-  const forms = {};
-  const analysis = analysisData || {};
-  if(type === 'verb'){
-    /* Whitaker-style principal parts: 1sg present, infinitive,
-       1sg perfect, perfect participle. */
-    if(parts[0]) forms.praesens = parts[0];
-    if(parts[1]) forms.infinitiv = parts[1];
-    if(parts[2]) forms.perfekt = parts[2];
-    if(parts[3]) forms.ppp = parts[3];
-  }else if(type === 'noun'){
-    if(parts[1]) forms.genitiv = parts[1];
-    const g = findGenderInObject(analysis) || findGenderInObject(result);
-    if(g) forms.genus = g;
-  }else if(type === 'adjective'){
-    if(parts[1]) forms.nomF = parts[1];
-    if(parts[2]) forms.nomN = parts[2];
-    if(parts[3]) forms.genitiv = parts[3];
-  }
-  return {
-    type, latin: parts[0] || input.trim(), forms,
-    meanings: meaningArrayFromApi(entry),
-    notes: 'Automatisch aus dem lateinischen Wörterbuch ergänzt.'
-  };
-}
-
-async function lookupLatinOnline(word, requestId){
-  const input = (word||'').trim();
-  if(!input || input.length < 2) return null;
-
-  const encoded = encodeURIComponent(input);
-  const [dictRes, inflRes] = await Promise.all([
-    fetch(latinApiUrl('/la-to-en/' + encoded), { headers:{'Accept':'application/json'} }),
-    fetch(latinApiUrl('/inflection-table?lemma=' + encoded + '&max_entries=5&include_periphrastic=0'), { headers:{'Accept':'application/json'} })
-  ]);
-
-  if(requestId !== latinLookupRequestId) return null;
-  if(!dictRes.ok && !inflRes.ok) throw new Error('Das Online-Wörterbuch ist momentan nicht erreichbar.');
-
-  const dictData = dictRes.ok ? await dictRes.json() : null;
-  const inflData = inflRes.ok ? await inflRes.json() : null;
-
-  /* The inflection endpoint is the source for principal parts.  The
-     translation endpoint supplies the best matching dictionary meaning. */
-  const inflResult = chooseApiResult(inflData, input);
-  let entry = entryFromInflectionResult(inflResult, inflData, input);
-
-  if(!entry && dictData?.data?.words){
-    const wordGroups = dictData.data.words;
-    const candidates = [];
-    wordGroups.forEach(group=>{
-      (group?.word||[]).forEach(w=>{
-        (w?.entry||[]).forEach(e=>{
-          (e?.dict||[]).forEach(d=>{
-            candidates.push({
-              type:typeFromPofs(d.pofs),
-              latin:String(d.hdwd||input).split(',')[0].trim(),
-              forms:{},
-              meanings:(e.mean||[]).flatMap(x=>String(x).split(';')).map(x=>x.trim()).filter(Boolean).slice(0,6),
-              notes:'Automatisch aus dem lateinischen Wörterbuch ergänzt.'
-            });
-          });
-        });
-      });
-    });
-    entry = candidates.find(x=>normalize(x.latin)===normalize(input)) || candidates[0] || null;
-  }
-
-  if(entry && dictData?.data?.words){
-    /* Prefer meanings from the direct lookup when available. */
-    const directMeanings = [];
-    dictData.data.words.forEach(group=>{
-      (group?.word||[]).forEach(w=>{
-        (w?.entry||[]).forEach(e=>{
-          (e?.mean||[]).forEach(m=>{
-            String(m).split(';').forEach(x=>{ if(x.trim()) directMeanings.push(x.trim()); });
-          });
-        });
-      });
-    });
-    if(directMeanings.length) entry.meanings = directMeanings.slice(0,6);
-  }
-  return entry;
-}
-
-function renderDictSuggestionsInto(results){
-  const el = document.getElementById('dictSuggestions');
-  if(!el) return;
-  state.dictSuggestions = results || [];
-  state.dictActiveIndex = -1;
-  if(!state.dictSuggestions.length){ el.innerHTML = ''; return; }
-  el.innerHTML = state.dictSuggestions.map((r,i)=>`
-    <button type="button" class="dict-suggestion-item" data-suggest-idx="${i}">
-      <span class="dsi-word">${escapeHtml(r.latin)}</span>
-      <span class="dsi-type">${TYPE_LABELS[r.type] || 'Latein'}</span>
-      <span class="dsi-meaning">${escapeHtml((r.meanings||[]).slice(0,2).join(', '))}</span>
-    </button>
-  `).join('');
-  el.querySelectorAll('[data-suggest-idx]').forEach(btn=>{
-    btn.addEventListener('mouseenter', ()=>{
-      state.dictActiveIndex = parseInt(btn.dataset.suggestIdx,10);
-      highlightDictSuggestion();
-    });
-    btn.addEventListener('click', ()=>{
-      applyDictSuggestion(state.dictSuggestions[parseInt(btn.dataset.suggestIdx,10)]);
-    });
-  });
-}
-
-function highlightDictSuggestion(){
-  const el = document.getElementById('dictSuggestions');
-  if(!el) return;
-  const items = el.querySelectorAll('[data-suggest-idx]');
-  items.forEach((btn,i)=>{
-    const active = i === state.dictActiveIndex;
-    btn.classList.toggle('active', active);
-    if(active && typeof btn.scrollIntoView === 'function') btn.scrollIntoView({ block:'nearest' });
-  });
-}
-
-function applyDictSuggestion(entry){
-  if(!entry) return;
-  state.draftLatin = entry.latin || state.draftLatin;
-  state.draftType = entry.type || 'other';
-  state.draftForms = Object.assign({}, entry.forms || {});
-  if(entry.meanings && entry.meanings.length) state.meaningsDraft = entry.meanings.slice(0,6);
-  if(entry.notes) state.draftNotes = entry.notes;
-  state.dictSuggestions = [];
-  state.dictActiveIndex = -1;
-  render();
-  setLatinAutofillStatus('success', 'Wortart, Formen und Bedeutungen wurden automatisch ergänzt. Bitte vor dem Speichern prüfen.');
-  const latinInput = document.getElementById('latinInput');
-  if(latinInput) latinInput.focus();
-}
-
-function scheduleLatinLookup(word){
-  clearTimeout(latinLookupTimer);
-  const input = (word||'').trim();
-  if(input.length < 2){
-    renderDictSuggestionsInto([]);
-    setLatinAutofillStatus('', '');
-    return;
-  }
-
-  /* Keep the local CSV suggestions, if the user still has one. */
-  const local = searchDictionaryLocal(input);
-  if(local.length) renderDictSuggestionsInto(local);
-
-  const requestId = ++latinLookupRequestId;
-  latinLookupTimer = setTimeout(async ()=>{
-    setLatinAutofillStatus('loading', 'Suche „' + input + '“ im Latein-Wörterbuch…');
-    try{
-      const entry = await lookupLatinOnline(input, requestId);
-      if(requestId !== latinLookupRequestId) return;
-      if(!entry){
-        setLatinAutofillStatus('error', 'Kein eindeutiger Wörterbucheintrag gefunden. Du kannst die Felder manuell ausfüllen.');
-        return;
-      }
-
-      /* Do not overwrite a field while the user is actively typing into
-         another part of the form.  The lookup is only applied after a pause. */
-      state.draftLatin = entry.latin || input;
-      state.draftType = entry.type || state.draftType;
-      state.draftForms = Object.assign({}, entry.forms || {});
-      if(entry.meanings?.length) state.meaningsDraft = entry.meanings.slice(0,6);
-
-      renderDictSuggestionsInto([entry]);
-      render();
-      setLatinAutofillStatus('success', 'Automatisch gefunden: ' + (TYPE_LABELS[entry.type] || 'Latein') + '. Formen und Bedeutungen wurden ergänzt — bitte vor dem Speichern prüfen.');
-    }catch(err){
-      if(requestId !== latinLookupRequestId) return;
-      console.error('Latin dictionary lookup failed:', err);
-      setLatinAutofillStatus('error', 'Online-Wörterbuch nicht erreichbar. Manuelle Eingabe bleibt möglich.');
-    }
-  }, 450);
 }
 
 /* ===================== HELPERS ===================== */
@@ -1248,7 +965,6 @@ async function domainCanReceiveMail(domain){
 function formFieldsFor(type){
   if(type==='verb') return [
     {key:'praesens', label:'1.PSg.Präs.', required:false},
-    {key:'infinitiv', label:'Infinitiv', required:false},
     {key:'perfekt', label:'1.PSg.Perf.', required:false},
     {key:'ppp', label:'PPP', required:false}
   ];
@@ -1862,7 +1578,6 @@ function renderAddTab(){
           <div class="latin-input-wrap">
             <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen" autocomplete="off">
             <div class="dict-suggestions" id="dictSuggestions"></div>
-            <div id="latinAutofillStatus" class="latin-autofill-status"></div>
           </div>
           ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
         </div>
@@ -1928,7 +1643,8 @@ function bindAddTabEvents(){
     state.draftLatin = e.target.value;
     document.getElementById('navigiumLink').href = navigiumUrl(e.target.value);
     state.dictActiveIndex = -1;
-    scheduleLatinLookup(e.target.value);
+    const word = e.target.value.trim();
+    renderDictSuggestionsInto(word.length < 2 ? [] : searchDictionaryLocal(word));
   });
   document.getElementById('latinInput').addEventListener('blur', ()=>{
     setTimeout(()=>{ renderDictSuggestionsInto([]); }, 150);
@@ -2205,7 +1921,7 @@ function renderPoolTab(){
     </div>
 
     <div class="panel">
-      <h2 class="section-title">Automatisches Latein-Wörterbuch</h2>
+      <h2 class="section-title">Wörterbuch für Formen-Vorschläge</h2>
       <div class="field-hint" id="dictStatus">${dictionaryStatusText()}</div>
     </div>
   `;
@@ -2832,7 +2548,7 @@ document.querySelectorAll('nav.tabs button').forEach(b=> b.addEventListener('cli
 
 /* ===================== INIT ===================== */
 (async function init(){
-  loadDictionary(); // optional local fallback; online dictionary is used automatically
+  loadDictionary(); // fire-and-forget: static file, independent of Supabase/auth
   if(STARTUP_ERROR || !sbClient){ render(); return; }
   try{
     const { data: { session } } = await sbClient.auth.getSession();
