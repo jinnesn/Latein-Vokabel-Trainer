@@ -1691,7 +1691,15 @@ function bindAddTabEvents(){
   });
 
   document.querySelectorAll('[data-form-key]').forEach(inp=>{
-    inp.addEventListener('input', e=>{ state.draftForms[e.target.dataset.formKey] = e.target.value; });
+    inp.addEventListener('input', e=>{
+      // Auch die übrigen Formen beginnen beim Hinzufügen standardmäßig klein.
+      let value = e.target.value;
+      if(state.editingId === null && value.length > 0){
+        value = value.charAt(0).toLowerCase() + value.slice(1);
+        e.target.value = value;
+      }
+      state.draftForms[e.target.dataset.formKey] = value;
+    });
   });
 
   document.getElementById('meaningsList').addEventListener('input', e=>{
