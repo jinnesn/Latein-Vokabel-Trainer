@@ -1648,6 +1648,10 @@ function bindAddTabEvents(){
   });
 
   document.getElementById('latinInput').addEventListener('input', e=>{
+    // Beim Hinzufügen einer neuen Vokabel beginnt die Grundform standardmäßig klein.
+    if(state.editingId === null && e.target.value.length > 0){
+      e.target.value = e.target.value.charAt(0).toLowerCase() + e.target.value.slice(1);
+    }
     state.draftLatin = e.target.value;
     document.getElementById('navigiumLink').href = navigiumUrl(e.target.value);
     state.dictActiveIndex = -1;
