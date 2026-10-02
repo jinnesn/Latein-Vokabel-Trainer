@@ -16,7 +16,7 @@ Adjektiv;agrestis;;;;;;agrestis;agreste;ländlich, wild, bäurisch;
 Adjektiv;albus;;;;;;alba;album;weiß, bleich, hell;
 Adjektiv;alienus;;;;;;aliena;alienum;fremd, einem anderen gehörig;
 Adjektiv;alius;;;;;;alia;alium;ein anderer, verschieden;
-Adjektiv;alter;;;;;;altera;alterum;der eine (von zweien), der andere;
+Adjektiv;alter;;;;;;altera;alterum;der eine, der andere;von zweien
 Adjektiv;alternus;;;;;;alterna;alternum;abwechselnd, gegenseitig;
 Adjektiv;altus;;;;;;alta;altum;hoch, tief, erhaben;
 Adjektiv;ambiguus;;;;;;ambigua;ambiguum;zweifelhaft, schwankend;
@@ -259,7 +259,7 @@ Adjektiv;tuus;;;;;;tua;tuum;dein;
 Adjektiv;ullus;;;;;;ulla;ullum;irgendein;
 Adjektiv;unicus;;;;;;unica;unicum;einzig, einzigartig;
 Adjektiv;universus;;;;;;universa;universum;der ganze, gesamt, allgemein;
-Adjektiv;uter;;;;;;utra;utrum;welcher (von zweien);
+Adjektiv;uter;;;;;;utra;utrum;welcher;von zweien
 Adjektiv;utilis;;;;;;utilis;utile;nützlich, brauchbar, vorteilhaft;
 Adjektiv;valens;;;;valentis;;valens;valens;stark, kräftig, gesund;
 Adjektiv;validus;;;;;;valida;validum;stark, kräftig, gültig;
@@ -270,7 +270,7 @@ Adjektiv;vetus;;;;veteris;;vetus;vetus;alt, betagt, altbewährt;
 Adjektiv;vicinus;;;;;;vicina;vicinum;benachbart, nahe;
 Adjektiv;vilis;;;;;;vilis;vile;billig, gering, wertlos;
 Adjektiv;vivus;;;;;;viva;vivum;lebendig, lebhaft;
-Sonstiges;Io;;;;;;;;ei! ha! (Ausruf);
+Sonstiges;Io;;;;;;;;ei, ha;Ausruf
 Sonstiges;a;;;;;;;;von, von...her, aus;
 Sonstiges;ab;;;;;;;;von, von...her, aus;
 Sonstiges;abs;;;;;;;;von, von...her, aus;
@@ -324,7 +324,7 @@ Sonstiges;ecce;;;;;;;;siehe da! sieh!;
 Sonstiges;ego;;;;;;;;ich;
 Sonstiges;enim;;;;;;;;denn, nämlich, in der Tat;
 Sonstiges;ergo;;;;;;;;also, folglich;
-Sonstiges;et;;;;;;;;"und, sogar; auch";
+Sonstiges;et;;;;;;;;und, sogar, auch;
 Sonstiges;etiam;;;;;;;;und auch, außerdem, sogar;
 Sonstiges;ex;;;;;;;;aus, heraus, seit;
 Sonstiges;extra;;;;;;;;außerhalb, außer;
@@ -338,7 +338,7 @@ Sonstiges;heu;;;;;;;;oh! ach! wehe!;
 Sonstiges;hinc;;;;;;;;von hier, daher;
 Sonstiges;hodie;;;;;;;;heute;
 Sonstiges;huc;;;;;;;;hierher, bis hierher;
-Sonstiges;i;;;;;;;;"er, sie, es; jener";
+Sonstiges;i;;;;;;;;er, sie, es, jener;
 Sonstiges;ibi;;;;;;;;dort, dorthin;
 Sonstiges;ideo;;;;;;;;deshalb, aus diesem Grund;
 Sonstiges;igitur;;;;;;;;also, folglich, daher;
@@ -354,7 +354,7 @@ Sonstiges;interim;;;;;;;;inzwischen, mittlerweile;
 Sonstiges;intra;;;;;;;;innerhalb, während;
 Sonstiges;intro;;;;;;;;hinein, innen, drinnen;
 Sonstiges;ips;;;;;;;;er selbst, sie selbst;
-Sonstiges;ist;;;;;;;;jener, dieser (dein);
+Sonstiges;ist;;;;;;;;jener, dieser;auf den Angesprochenen bezogen („dein da“)
 Sonstiges;ita;;;;;;;;so, auf diese Weise;
 Sonstiges;itaque;;;;;;;;und so, daher, deshalb;
 Sonstiges;item;;;;;;;;ebenso, ebenfalls;
@@ -372,7 +372,7 @@ Sonstiges;mox;;;;;;;;bald, danach;
 Sonstiges;n;;;;;;;;wir, uns;
 Sonstiges;nam;;;;;;;;denn, nämlich;
 Sonstiges;namque;;;;;;;;denn, nämlich;
-Sonstiges;ne;;;;;;;;"nicht (in Absichtssätzen); damit nicht";
+Sonstiges;ne;;;;;;;;nicht, damit nicht;in Absichtssätzen
 Sonstiges;nec;;;;;;;;und nicht, auch nicht;
 Sonstiges;neque;;;;;;;;und nicht, weder...noch;
 Sonstiges;nimis;;;;;;;;sehr, zu sehr;
@@ -605,7 +605,7 @@ Substantiv;consul;;;;consulis;M;;;der Konsul;
 Substantiv;contentio;;;;contentionis;F;;;die Anstrengung, der Streit, der Vergleich;
 Substantiv;copia;;;;copiae;F;;;die Menge, der Vorrat, die Truppen;
 Substantiv;cor;;;;cordis;N;;;das Herz, der Verstand;
-Substantiv;cornu;;;;cornus;N;;;das Horn, der Flügel (des Heeres);
+Substantiv;cornu;;;;cornus;N;;;das Horn, der Flügel;Heeresflügel
 Substantiv;corona;;;;coronae;F;;;die Krone, der Kranz;
 Substantiv;corpus;;;;corporis;N;;;der Körper, die Person;
 Substantiv;cors;;;;cortis;F;;;der Hof, das Gefolge;
@@ -829,7 +829,7 @@ Substantiv;praelium;;;;praeli(i);N;;;der Kampf, die Schlacht;
 Substantiv;praemium;;;;praemi(i);N;;;der Preis, die Belohnung;
 Substantiv;praesidium;;;;praesidi(i);N;;;der Schutz, die Besatzung;
 Substantiv;pratum;;;;prati;N;;;die Wiese;
-Substantiv;presbyter;;;;presbyteri;M;;;der Priester (christlich);
+Substantiv;presbyter;;;;presbyteri;M;;;der Priester;christlicher Priester
 Substantiv;prex;;;;precis;F;;;das Gebet, die Bitte;
 Substantiv;princeps;;;;principis;M;;;der Anführer, der erste Bürger;
 Substantiv;principium;;;;principi(i);N;;;der Anfang;
@@ -1371,7 +1371,7 @@ Verb;ingredior;ingredior;;ingressus;;;;;hineingehen, beginnen, sich unterfangen;
 Verb;inpello;inpello;inpuli;inpulsus;;;;;antreiben, drängen;
 Verb;inplico;inplico;inplicavi;inplicatus;;;;;verwickeln, verflechten;
 Verb;inplico;inplico;inplicui;inplicitus;;;;;verwickeln, verflechten;
-Verb;inqui;inqui;;;;;;;sagen (defektiv);
+Verb;inqui;inqui;;;;;;;sagen;defektives Verb, nur in bestimmten Formen gebräuchlich
 Verb;inrumpo;inrumpo;inrupi;inruptus;;;;;einbrechen, hereinstürmen;
 Verb;instituo;instituo;institui;institutus;;;;;einrichten, aufstellen, beschließen;
 Verb;insto;insto;institi;;;;;;bedrängen, nahe bevorstehen;
@@ -1431,7 +1431,7 @@ Verb;noceo;noceo;nocui;nocitus;;;;;schaden, verletzen;
 Verb;nolo;nolo;nolui;;;;;;nicht wollen;
 Verb;nomino;nomino;nominavi;nominatus;;;;;nennen, benennen;
 Verb;nosco;nosco;novi;notus;;;;;kennenlernen, erfahren;
-Verb;nubo;nubo;nupsi;nuptus;;;;;heiraten (von der Frau);
+Verb;nubo;nubo;nupsi;nuptus;;;;;heiraten;von der Frau gesagt
 Verb;numero;numero;numeravi;numeratus;;;;;zählen, rechnen;
 Verb;nuncio;nuncio;nunciavi;nunciatus;;;;;ankündigen, melden;
 Verb;nuntio;nuntio;nuntiavi;nuntiatus;;;;;ankündigen, melden;
