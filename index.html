@@ -13,7 +13,6 @@
    LEXICON — DESIGN SYSTEM
    ============================================================ */
 
-/* ---------- 1. TOKENS ---------- */
 :root{
   --bg-100:#efe6cf;
   --bg-200:#e6dabb;
@@ -32,10 +31,13 @@
   --accent-hover:#5c0f08;
   --accent-active:#420a05;
   --accent-soft:#9c2e24;
+  --accent-bright:#b0281c;
+  --accent-deep:#4a0805;
   --accent-tint:#f1ddd8;
   --accent-tint-strong:#e7c7bf;
   --gold:#a9823d;
   --gold-soft:#c9a765;
+  --gold-bright:#d4ae62;
 
   --success:#3d5c42;
   --success-tint:#dce8db;
@@ -53,7 +55,6 @@
   --shadow-md:0 1px 0 rgba(255,255,255,0.45) inset, 0 6px 16px -10px rgba(43,33,23,0.45);
   --shadow-lg:0 1px 0 rgba(255,255,255,0.5) inset, 0 14px 34px -14px rgba(43,33,23,0.55);
   --shadow-focus:0 0 0 3px rgba(169,130,61,0.35);
-  --shadow-accent:0 3px 10px -3px rgba(122,24,16,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
 
   --sp-1:4px;  --sp-2:8px;  --sp-3:12px; --sp-4:16px;
   --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px;
@@ -80,7 +81,7 @@
   color-scheme:light;
 }
 
-/* ---------- 2. RESET & BASE ---------- */
+/* ---------- RESET & BASE ---------- */
 *,*::before,*::after{ box-sizing:border-box; }
 html,body{ margin:0; padding:0; }
 html{ -webkit-text-size-adjust:100%; }
@@ -115,7 +116,7 @@ input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
   box-shadow:var(--shadow-focus);
 }
 
-/* ---------- 3. LAYOUT ---------- */
+/* ---------- LAYOUT ---------- */
 .wrap{
   max-width:var(--w-content);
   margin:0 auto;
@@ -159,21 +160,25 @@ input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
 }
 .header-actions{ display:flex; align-items:center; gap:var(--sp-2); flex-shrink:0; }
 
-/* --- Tabs --- */
+/* =========================================================
+   TABS — der aktive Reiter ist jetzt richtig dunkel und satt
+   ========================================================= */
 .tabs{
   display:flex;
-  gap:var(--sp-1);
-  background:var(--card-100);
+  gap:6px;
+  background:var(--card-200);
   border:1px solid var(--card-edge);
   border-radius:var(--r-md);
-  padding:var(--sp-1);
+  padding:6px;
   margin-bottom:var(--sp-5);
   position:sticky;
   top:var(--sp-3);
   z-index:20;
-  box-shadow:var(--shadow-sm);
-  backdrop-filter:blur(8px);
-  -webkit-backdrop-filter:blur(8px);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.5) inset,
+    0 4px 12px -8px rgba(43,33,23,0.5);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
   overflow-x:auto;
   scrollbar-width:none;
 }
@@ -182,36 +187,46 @@ input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
   flex:1 1 0;
   min-width:104px;
   background:transparent;
-  border:none;
-  padding:12px var(--sp-3);
+  border:1px solid transparent;
+  padding:13px var(--sp-3);
   font-family:'Cinzel', serif;
   font-size:var(--fs-sm);
   letter-spacing:0.08em;
   text-transform:uppercase;
   color:var(--ink-faint);
   border-radius:var(--r-sm);
-  transition:color var(--dur-fast), background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast);
+  transition:color var(--dur-fast), background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast), border-color var(--dur-fast);
   white-space:nowrap;
   display:flex; align-items:center; justify-content:center; gap:6px;
   position:relative;
   font-weight:600;
 }
-.tabs button:hover:not(:disabled):not(.active){ color:var(--accent-hover); background:var(--accent-tint); }
+.tabs button:hover:not(:disabled):not(.active){
+  color:var(--accent-hover);
+  background:var(--accent-tint);
+  border-color:var(--accent-tint-strong);
+}
 .tabs button.active{
-  background:linear-gradient(180deg, var(--accent-soft), var(--accent) 40%, var(--accent-hover));
+  background:linear-gradient(180deg, var(--accent-bright) 0%, var(--accent) 45%, var(--accent-deep) 100%);
   color:#fff9ef;
-  box-shadow:var(--shadow-accent);
+  border-color:var(--accent-deep);
+  box-shadow:
+    0 4px 14px -4px rgba(74,8,5,0.7),
+    0 1px 0 rgba(255,255,255,0.22) inset,
+    0 -2px 4px rgba(0,0,0,0.3) inset;
   transform:translateY(-1px);
   font-weight:700;
-  letter-spacing:0.09em;
+  letter-spacing:0.1em;
+  text-shadow:0 1px 1px rgba(0,0,0,0.35);
 }
 .tabs button.active::after{
   content:"";
   position:absolute;
-  left:14%; right:14%; bottom:-1px;
-  height:2.5px;
-  background:linear-gradient(90deg, transparent, var(--gold) 30%, var(--gold) 70%, transparent);
-  border-radius:0 0 3px 3px;
+  left:10%; right:10%; bottom:-3px;
+  height:3px;
+  background:linear-gradient(90deg, transparent, var(--gold-bright) 15%, var(--gold-bright) 85%, transparent);
+  border-radius:3px;
+  box-shadow:0 0 10px rgba(212,174,98,0.75);
 }
 .tabs button:disabled{ opacity:0.4; cursor:not-allowed; }
 .tab-badge{
@@ -226,7 +241,11 @@ input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
   font-weight:700;
   letter-spacing:0;
 }
-.tabs button.active .tab-badge{ background:var(--gold); color:#2b2117; }
+.tabs button.active .tab-badge{
+  background:var(--gold-bright);
+  color:#3d0805;
+  box-shadow:0 0 0 1px rgba(61,8,5,0.15) inset;
+}
 
 .app-footer{
   text-align:center;
@@ -238,7 +257,7 @@ input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
   opacity:0.85;
 }
 
-/* ---------- 4. COMPONENTS ---------- */
+/* ---------- PANEL & SECTION ---------- */
 .panel{
   background:var(--card-100);
   border:1px solid var(--card-edge);
@@ -267,6 +286,41 @@ input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
   justify-content:space-between;
   gap:var(--sp-3);
 }
+
+/* =========================================================
+   FORM SECTIONS — strukturierte Hinzufügen-Seite
+   ========================================================= */
+.form-section{
+  padding:20px 0;
+  border-top:1px solid var(--line);
+}
+.form-section:first-of-type{
+  padding-top:0;
+  border-top:none;
+}
+.form-section:last-of-type{
+  padding-bottom:0;
+}
+.form-section-label{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11px;
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-bottom:14px;
+  font-weight:600;
+}
+.form-section-label::after{
+  content:"";
+  flex:1;
+  height:1px;
+  background:linear-gradient(90deg, var(--gold), transparent);
+  opacity:0.4;
+}
+.form-section-label .req{ color:var(--accent); }
 
 /* Buttons */
 .btn{
@@ -400,8 +454,8 @@ input,select,textarea{ font-family:inherit; font-size:inherit; color:inherit; }
 .dropdown-item:hover{ background:var(--accent-tint); color:var(--accent-hover); }
 .dropdown-item svg{ width:16px; height:16px; opacity:0.7; flex-shrink:0; }
 
-/* Inputs & Fields */
-.field{ margin-bottom:var(--sp-5); }
+/* Inputs */
+.field{ margin-bottom:var(--sp-4); }
 .field:last-child{ margin-bottom:0; }
 .field-label{
   display:block;
@@ -447,7 +501,6 @@ textarea{ resize:vertical; min-height:60px; }
 }
 .field-label-row .field-label{ margin-bottom:0; }
 
-/* Segmented control (kräftiger) */
 .segmented{
   display:flex;
   border:1px solid var(--card-edge-strong);
@@ -476,7 +529,6 @@ textarea{ resize:vertical; min-height:60px; }
   text-shadow:0 1px 1px rgba(0,0,0,0.2);
 }
 
-/* Chip */
 .chip{
   display:inline-flex; align-items:center; gap:6px;
   background:var(--card-100);
@@ -624,7 +676,7 @@ input[type=range]{
   flex-wrap:wrap;
 }
 
-/* Toast stack */
+/* Toasts */
 .toast-stack{
   position:fixed;
   bottom:var(--sp-5);
@@ -741,9 +793,7 @@ input[type=range]{
   padding:0 var(--sp-4) var(--sp-4);
 }
 
-/* ---------- 5. TABS-SPEZIFISCH ---------- */
-
-/* --- ADD TAB --- */
+/* ---------- ADD TAB ---------- */
 .context-bar{ margin-bottom:var(--sp-5); }
 .context-label{
   font-family:'IBM Plex Mono', monospace;
@@ -797,12 +847,10 @@ input[type=range]{
 }
 .dsi-meaning{ color:var(--ink-mute); flex:1; text-align:left; }
 
-/* NEU: Formfelder-Grid */
 .form-grid{
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
   gap:var(--sp-3);
-  margin-bottom:var(--sp-5);
 }
 .form-grid .field{ margin-bottom:0; }
 .form-grid input{ font-size:14.5px; }
@@ -814,7 +862,7 @@ input[type=range]{
 }
 .meaning-row input{ flex:1; }
 
-/* --- POOL TAB --- */
+/* ---------- POOL TAB ---------- */
 .filter-row{
   display:flex; gap:var(--sp-3);
   margin-bottom:var(--sp-4);
@@ -1051,7 +1099,7 @@ input[type=range]{
 }
 .folder-tag button:hover{ color:var(--accent); background:var(--accent-tint); }
 
-/* --- PRACTICE TAB --- */
+/* ---------- PRACTICE ---------- */
 .practice-wrap{
   display:flex;
   flex-direction:column;
@@ -1208,7 +1256,9 @@ input[type=range]{
   margin:0 2px;
 }
 
-/* --- TEST TAB --- */
+/* =========================================================
+   TEST TAB — neue, freie Anzahl-Auswahl
+   ========================================================= */
 .test-flow{
   display:flex;
   flex-direction:column;
@@ -1217,7 +1267,7 @@ input[type=range]{
 .test-step{
   border:1px solid var(--line);
   border-radius:var(--r-md);
-  padding:var(--sp-4) var(--sp-5);
+  padding:var(--sp-5);
   background:var(--card-200);
 }
 .test-step-label{
@@ -1226,85 +1276,147 @@ input[type=range]{
   letter-spacing:0.06em;
   text-transform:uppercase;
   color:var(--ink-mute);
-  margin-bottom:var(--sp-3);
-  display:flex; align-items:center; gap:8px;
+  margin-bottom:var(--sp-4);
+  display:flex; align-items:center; gap:10px;
 }
 .test-step-num{
-  width:22px; height:22px;
+  width:26px; height:26px;
   border-radius:50%;
   background:linear-gradient(180deg, var(--accent-soft), var(--accent));
   color:#fdf6ea;
   display:inline-flex;
   align-items:center; justify-content:center;
-  font-size:11px;
+  font-size:12px;
   font-weight:700;
   font-family:'Cinzel', serif;
-  box-shadow:0 2px 4px -1px rgba(122,24,16,0.4);
+  box-shadow:0 2px 6px -2px rgba(122,24,16,0.5);
+  flex-shrink:0;
 }
 
-/* NEU: Freie Anzahl-Auswahl */
-.count-picker{
+/* Count-Picker: neu und prominent */
+.count-picker-card{
+  display:flex;
+  flex-direction:column;
+  gap:var(--sp-4);
+  padding:var(--sp-5);
+  background:linear-gradient(180deg, var(--card-100), var(--card-200));
+  border:1px solid var(--card-edge);
+  border-radius:var(--r-md);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    0 2px 8px -6px rgba(43,33,23,0.35);
+}
+.count-main{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:var(--sp-4);
+  flex-wrap:wrap;
+}
+.count-stepper{
+  display:flex;
+  align-items:stretch;
+  background:var(--card-100);
+  border:2px solid var(--card-edge-strong);
+  border-radius:var(--r-md);
+  overflow:hidden;
+  box-shadow:
+    0 3px 10px -6px rgba(43,33,23,0.4),
+    inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.count-step{
+  width:52px;
+  min-height:62px;
+  background:transparent;
+  border:none;
+  font-size:26px;
+  font-family:'Cinzel', serif;
+  font-weight:700;
+  color:var(--accent-hover);
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:background var(--dur-fast), color var(--dur-fast);
+  user-select:none;
+  line-height:1;
+}
+.count-step:hover:not(:disabled){ background:var(--accent-tint); color:var(--accent); }
+.count-step:active:not(:disabled){ background:var(--accent-tint-strong); }
+.count-step:disabled{ opacity:0.3; cursor:not-allowed; }
+.count-value{
+  width:100px;
+  min-height:62px;
+  border:none;
+  background:transparent;
+  font-family:'Cinzel', serif;
+  font-size:34px;
+  font-weight:700;
+  color:var(--accent-hover);
+  text-align:center;
+  border-left:1px solid var(--card-edge);
+  border-right:1px solid var(--card-edge);
+  box-shadow:none !important;
+  padding:0 8px;
+  letter-spacing:0.02em;
+}
+.count-value:focus{
+  outline:3px solid var(--gold);
+  outline-offset:-3px;
+  background:var(--card-200);
+}
+.count-value::placeholder{ color:var(--ink-mute); opacity:0.4; }
+.count-value::-webkit-inner-spin-button,
+.count-value::-webkit-outer-spin-button{ -webkit-appearance:none; margin:0; }
+
+.count-label{
+  text-align:center;
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11.5px;
+  letter-spacing:0.07em;
+  text-transform:uppercase;
+  color:var(--ink-mute);
+}
+.count-label strong{
+  color:var(--accent-hover);
+  font-size:13px;
+  letter-spacing:0;
+}
+
+.count-slider-row{
   display:flex;
   align-items:center;
   gap:var(--sp-3);
-  flex-wrap:wrap;
+  padding:0 var(--sp-2);
 }
-.count-picker input[type=range]{
-  flex:1 1 200px;
-  min-width:180px;
+.count-slider-row input[type=range]{
+  flex:1;
 }
-.count-input-wrap{
+
+.count-presets{
   display:flex;
-  align-items:center;
-  gap:8px;
+  flex-wrap:wrap;
+  gap:6px;
+  justify-content:center;
+}
+.count-preset{
   background:var(--card-100);
   border:1px solid var(--card-edge);
   border-radius:var(--r-sm);
-  padding:4px 4px 4px 12px;
-  flex-shrink:0;
-}
-.count-input-wrap input[type=number]{
-  width:64px;
-  padding:7px 6px;
-  text-align:center;
-  font-family:'IBM Plex Mono', monospace;
-  font-size:15px;
-  font-weight:600;
-  border:none;
-  background:transparent;
-  box-shadow:none !important;
-}
-.count-input-wrap input[type=number]:focus{ outline:none; }
-.count-input-wrap .count-total{
-  font-family:'IBM Plex Mono', monospace;
+  padding:7px 14px;
   font-size:12.5px;
-  color:var(--ink-mute);
-  white-space:nowrap;
-  padding-right:4px;
+  font-weight:600;
+  font-family:'IBM Plex Mono', monospace;
+  color:var(--ink-soft);
+  cursor:pointer;
+  transition:background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-fast);
+  min-width:48px;
+  text-align:center;
 }
-.count-input-wrap .count-all-btn{
-  border:none;
-  background:linear-gradient(180deg, var(--gold-soft), var(--gold));
-  color:#2b2117;
-  font-family:'Cinzel', serif;
-  font-size:11px;
-  font-weight:700;
-  letter-spacing:0.06em;
-  text-transform:uppercase;
-  padding:8px 12px;
-  border-radius:5px;
-  transition:filter var(--dur-fast);
-}
-.count-input-wrap .count-all-btn:hover{ filter:brightness(0.92); }
-.count-input-wrap .count-all-btn.active{
+.count-preset:hover{ background:var(--accent-tint); color:var(--accent-hover); border-color:var(--accent); }
+.count-preset.active{
   background:linear-gradient(180deg, var(--accent-soft), var(--accent));
   color:#fff9ef;
-}
-.count-hint{
-  font-size:12px;
-  color:var(--ink-mute);
-  margin-top:8px;
-  font-style:italic;
+  border-color:var(--accent);
+  box-shadow:0 2px 6px -2px rgba(122,24,16,0.45);
 }
 
 .settings-group{
@@ -1320,7 +1432,7 @@ input[type=range]{
   padding:12px 14px;
 }
 .settings-group .meanings-row{ padding:12px 14px; }
-.settings-group .meanings-row .label{ font-size:14px; margin-bottom:9px; }
+.settings-group .meanings-row .label{ font-size:14px; margin-bottom:9px; font-weight:500; }
 .toggle-row{
   display:flex;
   align-items:center;
@@ -1474,13 +1586,13 @@ input[type=range]{
   font-size:13.5px;
   color:var(--ink-soft);
   font-weight:600;
-  transition:background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast);
+  transition:background var(--dur-fast), color var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-fast);
 }
 .auth-tabs button.active{
   background:linear-gradient(180deg, var(--accent-soft), var(--accent));
   color:#fff9ef;
   border-color:var(--accent);
-  box-shadow:0 2px 6px -2px rgba(122,24,16,0.4);
+  box-shadow:0 2px 6px -2px rgba(122,24,16,0.45);
 }
 .auth-tabs button:not(.active):hover{ background:var(--accent-tint); }
 
@@ -1494,7 +1606,6 @@ input[type=range]{
   font-size:13px;
 }
 
-/* ---------- 6. UTILITIES ---------- */
 .sr-only{
   position:absolute;
   width:1px; height:1px;
@@ -1522,7 +1633,7 @@ input[type=range]{
   .brand-title{ font-size:var(--fs-lg); letter-spacing:0.12em; }
   .brand-crest{ width:34px; height:34px; }
   .brand-crest svg{ width:20px; height:20px; }
-  .tabs button{ min-width:auto; padding:11px 8px; font-size:11px; letter-spacing:0.05em; }
+  .tabs button{ min-width:auto; padding:12px 8px; font-size:11px; letter-spacing:0.05em; }
   .tabs button .tab-label{ display:none; }
   .tabs button .tab-badge{ display:inline-flex; }
   .tabs button.active .tab-label{ display:inline; }
@@ -1531,14 +1642,19 @@ input[type=range]{
   .toast-stack{ bottom:var(--sp-3); }
   .summary-item{ font-size:13px; }
   .form-grid{ grid-template-columns:1fr; }
+  .count-value{ width:80px; font-size:28px; min-height:56px; }
+  .count-step{ width:46px; min-height:56px; font-size:22px; }
 }
 
 @media (max-width:400px){
   .brand-title{ font-size:16px; letter-spacing:0.1em; }
   .tabs{ gap:0; }
-  .tabs button{ padding:10px 6px; }
+  .tabs button{ padding:11px 6px; }
   .pool-item{ font-size:13px; gap:6px; }
   .pool-item .lw{ min-width:70px; }
+  .count-stepper{ width:100%; justify-content:space-between; }
+  .count-value{ width:auto; flex:1; min-width:60px; }
+  .count-step{ width:44px; }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -1550,7 +1666,7 @@ input[type=range]{
   .flashcard-inner{ transition:none; }
 }
 
-/* ---------- 7. DARK MODE ---------- */
+/* Dark Mode */
 [data-theme="dark"]{
   --bg-100:#1a1612;
   --bg-200:#181410;
@@ -1565,14 +1681,17 @@ input[type=range]{
   --ink-faint:#8e7e5d;
   --ink-mute:#6b5e45;
 
-  --accent:#d5624f;
-  --accent-hover:#e88a78;
+  --accent:#c9594a;
+  --accent-hover:#e08070;
   --accent-active:#f0a596;
-  --accent-soft:#c04b3a;
-  --accent-tint:rgba(213,98,79,0.16);
-  --accent-tint-strong:rgba(213,98,79,0.28);
+  --accent-soft:#b8473a;
+  --accent-bright:#d96a5a;
+  --accent-deep:#7a2e24;
+  --accent-tint:rgba(201,89,74,0.16);
+  --accent-tint-strong:rgba(201,89,74,0.28);
   --gold:#d4ae62;
   --gold-soft:#b8924a;
+  --gold-bright:#e6c176;
 
   --success:#7fb884;
   --success-tint:rgba(127,184,132,0.16);
@@ -1590,7 +1709,6 @@ input[type=range]{
   --shadow-md:0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 20px -12px rgba(0,0,0,0.7);
   --shadow-lg:0 1px 0 rgba(255,255,255,0.04) inset, 0 18px 40px -16px rgba(0,0,0,0.8);
   --shadow-focus:0 0 0 3px rgba(212,174,98,0.35);
-  --shadow-accent:0 3px 12px -3px rgba(213,98,79,0.6), inset 0 1px 0 rgba(255,255,255,0.15);
 
   color-scheme:dark;
 }
@@ -1608,19 +1726,20 @@ input[type=range]{
 }
 [data-theme="dark"] .btn{ color:#1a1612; }
 [data-theme="dark"] .btn.secondary{ color:var(--accent-hover); }
-[data-theme="dark"] .tabs button.active{ color:#1a1612; }
-[data-theme="dark"] .segmented button.active{ color:#1a1612; }
-[data-theme="dark"] .avatar-btn{ color:#1a1612; }
+[data-theme="dark"] .tabs button.active{ color:#fff9ef; }
+[data-theme="dark"] .segmented button.active{ color:#fff9ef; }
+[data-theme="dark"] .avatar-btn{ color:#fff9ef; }
 [data-theme="dark"] .toast{ color:#ede2c8; }
 [data-theme="dark"] .toast-action{ color:var(--gold); }
-[data-theme="dark"] .chip.active{ color:#1a1612; }
-[data-theme="dark"] .test-step-num{ color:#1a1612; }
+[data-theme="dark"] .chip.active{ color:#fff9ef; }
+[data-theme="dark"] .test-step-num{ color:#fff9ef; }
+[data-theme="dark"] .count-preset.active{ color:#fff9ef; }
+[data-theme="dark"] .count-value{ color:var(--accent-hover); }
 </style>
 </head>
 <body>
 
 <div class="wrap">
-
   <header class="app-header">
     <div class="brand">
       <div class="brand-crest" aria-hidden="true">
@@ -1646,7 +1765,6 @@ input[type=range]{
   <main id="content"></main>
 
   <footer class="app-footer">Version 28.09 · Auswahl v8</footer>
-
 </div>
 
 <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="false"></div>
@@ -1654,7 +1772,7 @@ input[type=range]{
 
 <script>
 /* =====================================================================
-   KONFIGURATION — hier deine Supabase-Zugangsdaten eintragen
+   KONFIGURATION
    ===================================================================== */
 const SUPABASE_URL = 'https://cmggdraktkijfmptlynx.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNtZ2dkcmFrdGtpamZtcHRseW54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzYzMDYsImV4cCI6MjA5OTk1MjMwNn0.VNPghMV6h8qHASpt-bpm_kC_dLP_yVkPFZkMzX5s8Nw';
@@ -1676,7 +1794,6 @@ if(!STARTUP_ERROR){
   catch(e){ console.error(e); STARTUP_ERROR = 'sdk'; }
 }
 
-/* ===================== STATE ===================== */
 function loadAudioSettings(){
   const defaults = { musicVolume: 0.5, sfxVolume: 0.6, musicEnabled: true, sfxEnabled: true };
   try{
@@ -1797,34 +1914,26 @@ function showToast(message, options){
   const duration = options.duration || (action ? 7000 : 3000);
   const stack = document.getElementById('toastStack');
   if(!stack) return;
-
   const el = document.createElement('div');
   el.className = 'toast ' + type;
   el.setAttribute('role', type === 'error' ? 'alert' : 'status');
-
   const iconMap = { success: ICON_CHECK_SM, error: ICON_ERR_SM, warning: ICON_WARN_SM, info: ICON_INFO_SM };
   const iconSpan = document.createElement('span');
   iconSpan.className = 'toast-icon';
   iconSpan.innerHTML = iconMap[type] || '';
   el.appendChild(iconSpan);
-
   const text = document.createElement('span');
   text.textContent = message;
   el.appendChild(text);
-
   if(action){
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'toast-action';
     btn.textContent = action.label;
-    btn.addEventListener('click', ()=>{
-      dismiss();
-      action.fn();
-    });
+    btn.addEventListener('click', ()=>{ dismiss(); action.fn(); });
     el.appendChild(btn);
   }
   stack.appendChild(el);
-
   let timer = setTimeout(dismiss, duration);
   function dismiss(){
     clearTimeout(timer);
@@ -1844,10 +1953,8 @@ function showModal(config){
   backdrop.setAttribute('role', 'dialog');
   backdrop.setAttribute('aria-modal', 'true');
   if(config.title) backdrop.setAttribute('aria-label', config.title);
-
   const modal = document.createElement('div');
   modal.className = 'modal';
-
   if(config.title){
     const header = document.createElement('div');
     header.className = 'modal-header';
@@ -1857,16 +1964,13 @@ function showModal(config){
     header.appendChild(h);
     modal.appendChild(header);
   }
-
   const body = document.createElement('div');
   body.className = 'modal-body';
   if(typeof config.body === 'string') body.innerHTML = config.body;
   else if(config.body) body.appendChild(config.body);
   modal.appendChild(body);
-
   const actions = document.createElement('div');
   actions.className = 'modal-actions';
-
   function close(){
     backdrop.remove();
     document.removeEventListener('keydown', onKey);
@@ -1876,7 +1980,6 @@ function showModal(config){
     if(e.key === 'Escape' && !config.preventClose){ close(); }
   }
   document.addEventListener('keydown', onKey);
-
   (config.actions || []).forEach(action=>{
     const b = document.createElement('button');
     b.type = 'button';
@@ -1889,14 +1992,11 @@ function showModal(config){
     actions.appendChild(b);
   });
   modal.appendChild(actions);
-
   if(!config.preventClose){
     backdrop.addEventListener('click', e=>{ if(e.target === backdrop) close(); });
   }
-
   backdrop.appendChild(modal);
   root.appendChild(backdrop);
-
   const focusTarget = modal.querySelector('button, input, [tabindex]:not([tabindex="-1"])');
   if(focusTarget) focusTarget.focus();
   return { close };
@@ -1916,7 +2016,7 @@ function confirmDialog(opts){
   });
 }
 
-/* ===================== DATA LAYER ===================== */
+/* ===================== DATA ===================== */
 async function loadPool(){
   const { data: vocabRows, error: vErr } = await sbClient.from('vocab').select('*').order('latin');
   const { data: linkRows, error: lErr } = await sbClient.from('vocab_folders').select('*');
@@ -1997,7 +2097,6 @@ async function deleteFolderRow(id){
   if(error) throw error;
 }
 
-/* Dictionary */
 let DICTIONARY_CACHE = null;
 let DICTIONARY_LOAD_ERROR = false;
 async function loadDictionary(){
@@ -2021,7 +2120,6 @@ function searchDictionaryLocal(prefix){
   return DICTIONARY_CACHE.filter(r => r.latin.toLowerCase().startsWith(p)).slice(0, 8);
 }
 
-/* ===================== HELPERS ===================== */
 function normalize(s){
   return (s || '').toString().toLowerCase()
     .replace(/[.,;:!?¡¿'"„“”‚‘’`´]/g,'').replace(/\s+/g,' ').trim();
@@ -2041,18 +2139,16 @@ function shuffle(arr){
 function navigiumUrl(word){ return 'https://www.navigium.de/latein-woerterbuch.php?form=' + encodeURIComponent((word||'').trim()); }
 function escapeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-/* ===================== AUDIO ENGINE ===================== */
+/* ===================== AUDIO ===================== */
 const AudioEngine = (function(){
   let ctx = null;
   let musicGain = null, sfxGain = null, musicIn = null, sfxIn = null;
   let noiseBuf = null;
   let session = null;
   let unlocked = false;
-
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
   const rand = (a, b) => a + Math.random() * (b - a);
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-
   function makeImpulse(seconds, decay){
     const len = Math.floor(ctx.sampleRate * seconds);
     const buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -2062,7 +2158,6 @@ const AudioEngine = (function(){
     }
     return buf;
   }
-
   function ensureContext(){
     if(!ctx){
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -2088,7 +2183,6 @@ const AudioEngine = (function(){
     if(ctx.state === 'suspended') ctx.resume();
     return ctx;
   }
-
   function pianoNote(freq, t, vel, dur, dest){
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
@@ -2133,7 +2227,6 @@ const AudioEngine = (function(){
       o.start(t); o.stop(t + dur + 0.05);
     });
   }
-
   const CHORDS = [
     { bass: 45, tones: [57, 60, 64, 67, 71], pad: [57, 64, 67, 71] },
     { bass: 41, tones: [53, 57, 60, 64, 67], pad: [53, 60, 64, 67] },
@@ -2144,7 +2237,6 @@ const AudioEngine = (function(){
   const MELODY = [67, 69, 72, 74, 76, 79, 81];
   const BEAT = 0.95;
   const CHORD_BEATS = 8;
-
   function scheduleChord(s, chord, t0){
     const dest = s.fade;
     bassNote(chord.bass, t0, CHORD_BEATS * BEAT * 0.95, dest);
@@ -2166,7 +2258,6 @@ const AudioEngine = (function(){
       }
     });
   }
-
   function startMusic(){
     if(!ensureContext() || session) return;
     const fade = ctx.createGain();
@@ -2187,7 +2278,6 @@ const AudioEngine = (function(){
     };
     loop();
   }
-
   function stopMusic(){
     if(!session || !ctx) return;
     const s = session; session = null;
@@ -2195,15 +2285,10 @@ const AudioEngine = (function(){
     const now = ctx.currentTime;
     try{ s.fade.gain.cancelScheduledValues(now); s.fade.gain.setValueAtTime(Math.max(s.fade.gain.value, 0.0001), now); s.fade.gain.exponentialRampToValueAtTime(0.0001, now + 1.2); }catch(e){}
   }
-
-  function applyMusicState(){
-    if(state.audio.musicEnabled) startMusic(); else stopMusic();
-  }
+  function applyMusicState(){ if(state.audio.musicEnabled) startMusic(); else stopMusic(); }
   function setMusicVolume(v){ state.audio.musicVolume = v; if(musicGain) musicGain.gain.value = v; }
   function setSfxVolume(v){ state.audio.sfxVolume = v; if(sfxGain) sfxGain.gain.value = v; }
-
   function sfxOn(){ return state.audio.sfxEnabled && ensureContext(); }
-
   function chime(midi, t, peak, dur){
     const f = mtof(midi);
     [[1, 1], [2, 0.32], [3, 0.12], [4.2, 0.05]].forEach(([mult, amp])=>{
@@ -2236,7 +2321,6 @@ const AudioEngine = (function(){
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(sfxIn); o.start(t); o.stop(t + dur + 0.02);
   }
-
   function playFlip(){ if(!sfxOn()) return; const t = ctx.currentTime; swoosh(t, 2000, 1300, 0.06, 0.07); }
   function playCorrect(){
     if(!sfxOn()) return; const t = ctx.currentTime;
@@ -2262,7 +2346,6 @@ const AudioEngine = (function(){
     if(!sfxOn()) return; const t = ctx.currentTime;
     thump(t, 520, 340, 0.10, 0.06);
   }
-
   function unlockOnFirstInteraction(){
     if(unlocked) return;
     unlocked = true;
@@ -2272,7 +2355,6 @@ const AudioEngine = (function(){
   document.addEventListener('click', unlockOnFirstInteraction, { once:true });
   document.addEventListener('touchend', unlockOnFirstInteraction, { once:true });
   document.addEventListener('keydown', unlockOnFirstInteraction, { once:true });
-
   return { ensureContext, applyMusicState, setMusicVolume, setSfxVolume, playFlip, playCorrect, playIncorrect, playSave, playTick };
 })();
 
@@ -2303,7 +2385,6 @@ function parseCsv(text){
   if(field.length || row.length) pushRow();
   return rows.filter(r => r.length > 1 || (r.length === 1 && r[0] !== ''));
 }
-
 function csvToDictionaryRows(text){
   const rows = parseCsv(text);
   if(rows.length < 2) return [];
@@ -2352,7 +2433,6 @@ function translateAuthError(msg){
   if(msg.includes('session') && msg.includes('expired')) return 'Der Link ist abgelaufen. Fordere einen neuen Link zum Zurücksetzen an.';
   return msg;
 }
-
 function isPlausibleEmailFormat(email){
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -2440,7 +2520,6 @@ function applyDictSuggestion(entry){
   const submitBtn = document.querySelector('#vocabForm button[type="submit"]');
   if(submitBtn) submitBtn.focus();
 }
-
 function resetDraft(){
   state.editingId = null; state.draftType = 'verb'; state.draftLatin = '';
   state.draftForms = {}; state.draftNotes = ''; state.draftFolderIds = []; state.meaningsDraft = ['']; state.errors = {};
@@ -2453,7 +2532,7 @@ function startEditEntry(v){
   saveDraftCache();
 }
 
-/* ===================== ROOT RENDER ===================== */
+/* ===================== RENDER: HEADER ===================== */
 function renderSettingsBar(){
   const el = document.getElementById('settingsBar');
   if(!el) return;
@@ -2473,7 +2552,6 @@ function renderSettingsBar(){
   });
   if(state.settingsMenuOpen) bindSettingsDropdownEvents();
 }
-
 function renderSettingsDropdown(){
   const music = Math.round(state.audio.musicVolume*100);
   const sfx = Math.round(state.audio.sfxVolume*100);
@@ -2502,7 +2580,6 @@ function renderSettingsDropdown(){
     </div>
   `;
 }
-
 function bindSettingsDropdownEvents(){
   document.querySelectorAll('#themeSegmented [data-theme-opt]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -2543,6 +2620,7 @@ function bindSettingsDropdownEvents(){
 
 function renderAccountBar(){
   const el = document.getElementById('accountBar');
+  if(!el) return;
   if(!state.user){ el.innerHTML=''; return; }
   const initial = escapeHtml((state.user.email||'?').charAt(0).toUpperCase());
   el.innerHTML = `
@@ -2557,7 +2635,6 @@ function renderAccountBar(){
   });
   if(state.profileMenuOpen) bindProfileDropdownEvents();
 }
-
 function renderProfileDropdown(){
   return `
     <div class="dropdown" id="profileDropdown" role="menu">
@@ -2593,7 +2670,6 @@ function renderProfileDropdown(){
     </div>
   `;
 }
-
 function bindProfileDropdownEvents(){
   const openBtn = document.getElementById('openChangePassword');
   if(openBtn) openBtn.addEventListener('click', ()=>{
@@ -2636,7 +2712,6 @@ const TABS = [
   { key:'practice', label:'Üben' },
   { key:'test',     label:'Test' }
 ];
-
 function renderNav(){
   const nav = document.getElementById('mainNav');
   if(!nav) return;
@@ -2660,7 +2735,6 @@ function renderNav(){
     });
   });
 }
-
 function setActiveTab(tab){
   if((tab==='practice' || tab==='test') && state.pool.length===0){
     showToast('Füge zuerst Vokabeln hinzu.', { type:'info' });
@@ -2677,11 +2751,7 @@ function render(){
   renderNav();
   AudioEngine.applyMusicState();
   const el = document.getElementById('content');
-
-  if(STARTUP_ERROR){
-    el.innerHTML = renderSetupNotice();
-    return;
-  }
+  if(STARTUP_ERROR){ el.innerHTML = renderSetupNotice(); return; }
   if(state.authView === 'recovery'){
     el.innerHTML = renderPasswordRecoveryPanel();
     bindRecoveryEvents();
@@ -2692,23 +2762,16 @@ function render(){
     bindAuthEvents();
     return;
   }
-
-  if(state.loading){
-    el.innerHTML = renderSkeleton();
-    return;
-  }
-
+  if(state.loading){ el.innerHTML = renderSkeleton(); return; }
   if(state.activeTab==='add') el.innerHTML = renderAddTab();
   else if(state.activeTab==='pool') el.innerHTML = renderPoolTab();
   else if(state.activeTab==='practice') el.innerHTML = renderPracticeTab();
   else if(state.activeTab==='test') el.innerHTML = renderTestTab();
   bindTabEvents();
-
   if(!state.onboardingShown && state.pool.length > 0 && state.activeTab === 'add' && !state.editingId){
     maybeShowOnboardingHint();
   }
 }
-
 function renderSkeleton(){
   return `
     <div class="panel">
@@ -2720,7 +2783,6 @@ function renderSkeleton(){
     </div>
   `;
 }
-
 function maybeShowOnboardingHint(){
   state.onboardingShown = true;
   setTimeout(()=>{
@@ -2730,7 +2792,6 @@ function maybeShowOnboardingHint(){
     });
   }, 500);
 }
-
 function renderSetupNotice(){
   let msg;
   if(STARTUP_ERROR === 'missing'){
@@ -2780,7 +2841,6 @@ function renderAuthPanel(){
     </div>
   `;
 }
-
 function renderForgotPasswordPanel(){
   return `
     <div class="panel" style="max-width:var(--w-narrow); margin:0 auto;">
@@ -2803,7 +2863,6 @@ function renderForgotPasswordPanel(){
     </div>
   `;
 }
-
 function renderPasswordRecoveryPanel(){
   return `
     <div class="panel" style="max-width:var(--w-narrow); margin:0 auto;">
@@ -2826,7 +2885,6 @@ function renderPasswordRecoveryPanel(){
     </div>
   `;
 }
-
 function bindAuthEvents(){
   if(state.forgotPasswordOpen){ bindForgotPasswordEvents(); return; }
   document.querySelectorAll('[data-auth-tab]').forEach(btn=>{
@@ -2863,9 +2921,8 @@ function bindAuthEvents(){
         }
         const { data, error } = await sbClient.auth.signUp({ email, password });
         if(error) throw error;
-        if(data && data.session){
-          // logged in immediately
-        } else {
+        if(data && data.session){}
+        else {
           state.authNotice = 'Konto erstellt! Falls in deinem Supabase-Projekt die E-Mail-Bestätigung aktiv ist, bestätige zuerst deine Adresse und melde dich dann an.';
           state.authMode = 'login';
         }
@@ -2877,7 +2934,6 @@ function bindAuthEvents(){
     render();
   });
 }
-
 function bindForgotPasswordEvents(){
   document.getElementById('backToLoginBtn').addEventListener('click', ()=>{
     state.forgotPasswordOpen = false;
@@ -2901,7 +2957,6 @@ function bindForgotPasswordEvents(){
     render();
   });
 }
-
 function bindRecoveryEvents(){
   document.getElementById('recoveryForm').addEventListener('submit', async e=>{
     e.preventDefault();
@@ -2926,7 +2981,6 @@ function bindRecoveryEvents(){
     render();
   });
 }
-
 async function handleLogout(){
   await sbClient.auth.signOut();
   state.pool = []; state.folders = [];
@@ -2950,7 +3004,6 @@ function renderFolderContextBar(){
     </div>
   `;
 }
-
 function renderAddTab(){
   const editing = state.editingId !== null;
   const type = state.draftType || 'verb';
@@ -2978,7 +3031,6 @@ function renderAddTab(){
   `).join('');
   const meaningsErr = state.errors['meanings'];
   const latinErr = state.errors['latin'];
-
   const hasDraftContent = !editing && (state.draftLatin || state.meaningsDraft.some(m=>m) || state.draftNotes);
 
   return `
@@ -2986,38 +3038,53 @@ function renderAddTab(){
       <h2 class="section-title">${editing ? 'Vokabel bearbeiten' : 'Neue Vokabel hinzufügen'}</h2>
       ${renderFolderContextBar()}
       <form id="vocabForm" autocomplete="off">
-        <div class="field">
-          <div class="field-label-row">
-            <label class="field-label" for="latinInput">Vokabel (Grundform) <span class="req">*</span></label>
-            <a class="lookup-btn" id="navigiumLink" href="${navigiumUrl(latinVal)}" target="_blank" rel="noopener" title="Bei Navigium nachschlagen">
-              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2"/><line x1="15.3" y1="15.3" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              Navigium
-            </a>
+
+        <div class="form-section">
+          <div class="form-section-label">Vokabel <span class="req">*</span></div>
+          <div class="field" style="margin-bottom:0;">
+            <div class="field-label-row">
+              <label class="field-label" for="latinInput" style="margin-bottom:0;">Grundform</label>
+              <a class="lookup-btn" id="navigiumLink" href="${navigiumUrl(latinVal)}" target="_blank" rel="noopener" title="Bei Navigium nachschlagen">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2"/><line x1="15.3" y1="15.3" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                Navigium
+              </a>
+            </div>
+            <div class="latin-input-wrap">
+              <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen">
+              <div class="dict-suggestions" id="dictSuggestions"></div>
+            </div>
+            ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
           </div>
-          <div class="latin-input-wrap">
-            <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen">
-            <div class="dict-suggestions" id="dictSuggestions"></div>
-          </div>
-          ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
         </div>
-        <div class="field">
-          <label class="field-label">Wortart</label>
+
+        <div class="form-section">
+          <div class="form-section-label">Wortart</div>
           <div class="segmented" id="typeSegmented">${typeButtons}</div>
         </div>
-        ${fields.length ? `<div class="form-grid">${fieldsHtml}</div>` : ''}
-        <div class="field">
-          <label class="field-label">Bedeutungen <span class="req">*</span></label>
+
+        ${fields.length ? `
+        <div class="form-section">
+          <div class="form-section-label">Formen <span style="text-transform:none;letter-spacing:0;font-style:italic;color:var(--ink-mute);font-weight:400;margin-left:6px;">(optional)</span></div>
+          <div class="form-grid">${fieldsHtml}</div>
+        </div>` : ''}
+
+        <div class="form-section">
+          <div class="form-section-label">Bedeutungen <span class="req">*</span></div>
           <div id="meaningsList">${meaningsHtml}</div>
-          <button type="button" class="link-add" id="addMeaningBtn">+ weitere Bedeutung</button>
+          <button type="button" class="link-add" id="addMeaningBtn" style="margin-top:6px;">+ weitere Bedeutung</button>
           ${meaningsErr ? `<div class="field-error-msg">${meaningsErr}</div>` : ''}
         </div>
-        <details class="accordion" ${state.draftNotes ? 'open' : ''}>
-          <summary>Bemerkungen (optional)</summary>
-          <div class="accordion-body">
-            <textarea id="notesInput" rows="3" placeholder="Eselsbrücken, Besonderheiten, Kontext …">${escapeHtml(state.draftNotes)}</textarea>
-            <div class="field-hint">Wird beim Üben mit angezeigt, aber nicht im Test abgefragt.</div>
-          </div>
-        </details>
+
+        <div class="form-section">
+          <details class="accordion" ${state.draftNotes ? 'open' : ''}>
+            <summary>Bemerkungen (optional)</summary>
+            <div class="accordion-body">
+              <textarea id="notesInput" rows="3" placeholder="Eselsbrücken, Besonderheiten, Kontext …">${escapeHtml(state.draftNotes)}</textarea>
+              <div class="field-hint">Wird beim Üben mit angezeigt, aber nicht im Test abgefragt.</div>
+            </div>
+          </details>
+        </div>
+
         <div class="btn-row" style="margin-top:24px;">
           <button type="submit" class="btn">${editing ? 'Änderungen speichern' : 'Zum Vokabelpool hinzufügen'}</button>
           ${editing ? '<button type="button" class="btn secondary" id="cancelEditBtn">Abbrechen</button>' : ''}
@@ -3174,10 +3241,8 @@ function bindAddTabEvents(){
   form.addEventListener('submit', async e=>{
     e.preventDefault();
     state.errors = {};
-
     const latin = (state.draftLatin||'').trim();
     if(!latin) state.errors['latin'] = 'Bitte eine Vokabel eingeben.';
-
     const type = state.draftType || 'verb';
     const fieldDefs = formFieldsFor(type);
     const forms = {};
@@ -3191,10 +3256,8 @@ function bindAddTabEvents(){
       forms[f.key] = val;
       if(f.required && !val && !state.errors['form:'+f.key]) state.errors['form:'+f.key] = 'Diese Form wird benötigt.';
     });
-
     const meanings = state.meaningsDraft.map(m=>m.trim()).filter(Boolean);
     if(meanings.length===0) state.errors['meanings'] = 'Bitte mindestens eine Bedeutung angeben.';
-
     if(!state.editingId && latin){
       const existing = state.pool.find(v => v.latin.toLowerCase() === latin.toLowerCase());
       if(existing){
@@ -3206,9 +3269,7 @@ function bindAddTabEvents(){
         if(!ok){ return; }
       }
     }
-
     if(Object.keys(state.errors).length > 0){ render(); return; }
-
     const entry = { type, latin, forms, meanings, notes: (state.draftNotes||'').trim(), folderIds: state.draftFolderIds.slice() };
     try{
       const keepFolderIds = entry.folderIds.slice();
@@ -3237,7 +3298,6 @@ function sortedPool(list){
   else arr.sort((a,b)=>a.latin.localeCompare(b.latin,'de'));
   return arr;
 }
-
 const POOL_PAGE_SIZE = 15;
 let bulkFolderBusy = false;
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
@@ -3249,7 +3309,6 @@ function getPoolView(){
       .filter(v => !state.poolFolderFilter || (v.folderIds||[]).includes(state.poolFolderFilter))
   );
 }
-
 const TYPE_PLURAL = { verb: 'Verben', noun: 'Substantive', adjective: 'Adjektive', other: 'Sonstige' };
 function buildSelectScopes(){
   const view = getPoolView();
@@ -3281,7 +3340,6 @@ function applySelectScope(key){
   const allOn = item.ids.every(id => state.poolSelected[id]);
   item.ids.forEach(id => { if(allOn) delete state.poolSelected[id]; else state.poolSelected[id] = true; });
 }
-
 function renderPoolTab(){
   const allEntries = getPoolView();
   const totalPages = Math.max(1, Math.ceil(allEntries.length / POOL_PAGE_SIZE));
@@ -3289,7 +3347,6 @@ function renderPoolTab(){
   if(state.poolPage < 1) state.poolPage = 1;
   const pageStart = (state.poolPage - 1) * POOL_PAGE_SIZE;
   const listEntries = allEntries.slice(pageStart, pageStart + POOL_PAGE_SIZE);
-
   const poolItems = listEntries.map(v => `
       <div class="pool-item compact${state.poolSelectMode ? ' selectable' : ''}${state.poolSelectMode && state.poolSelected[v.id] ? ' selected' : ''}" ${state.poolSelectMode ? `data-row="${v.id}"` : ''}>
         ${state.poolSelectMode ? `<input type="checkbox" class="pool-checkbox" tabindex="-1" ${state.poolSelected[v.id]?'checked':''} aria-hidden="true">` : ''}
@@ -3303,9 +3360,7 @@ function renderPoolTab(){
         </span>
       </div>
     `).join('');
-
   const selectedIds = Object.keys(state.poolSelected).filter(id => state.poolSelected[id] && state.pool.some(v=>v.id===id));
-
   const ICON = {
     x: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     checks: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M8.3 12.4l2.6 2.6 4.8-5.4"/></svg>',
@@ -3372,7 +3427,6 @@ function renderPoolTab(){
       ` : `<span class="bulk-hint">Vokabeln antippen oder darüber ziehen</span>`}
     </div>
   ` : '';
-
   const paginationBar = allEntries.length > POOL_PAGE_SIZE ? `
     <div class="pagination-row">
       <button type="button" class="btn secondary small" id="poolPrevPage" ${state.poolPage<=1?'disabled':''}>◀ Zurück</button>
@@ -3380,14 +3434,12 @@ function renderPoolTab(){
       <button type="button" class="btn secondary small" id="poolNextPage" ${state.poolPage>=totalPages?'disabled':''}>Weiter ▶</button>
     </div>
   ` : '';
-
   const folderChips = state.folders.length ? `
     <div class="filter-chips" role="group" aria-label="Ordnerfilter">
       <button type="button" class="chip ${!state.poolFolderFilter?'active':''}" data-folder-chip="">Alle</button>
       ${state.folders.map(f=>`<button type="button" class="chip ${state.poolFolderFilter===f.id?'active':''}" data-folder-chip="${f.id}">${escapeHtml(f.name)}</button>`).join('')}
     </div>
   ` : '';
-
   return `
     <div class="panel">
       <h2 class="section-title">
@@ -3453,7 +3505,6 @@ function renderPoolTab(){
     </details>
   `;
 }
-
 function bindPoolTabEvents(){
   const toggleSelectMode = document.getElementById('toggleSelectMode');
   if(toggleSelectMode) toggleSelectMode.addEventListener('click', ()=>{
@@ -3461,7 +3512,6 @@ function bindPoolTabEvents(){
     if(!state.poolSelectMode) state.poolSelected = {};
     render();
   });
-
   const poolSearch = document.getElementById('poolSearch');
   if(poolSearch) poolSearch.addEventListener('input', e=>{
     const pos = e.target.selectionStart;
@@ -3484,7 +3534,6 @@ function bindPoolTabEvents(){
   if(poolPrevPage) poolPrevPage.addEventListener('click', ()=>{ state.poolPage -= 1; render(); });
   const poolNextPage = document.getElementById('poolNextPage');
   if(poolNextPage) poolNextPage.addEventListener('click', ()=>{ state.poolPage += 1; render(); });
-
   if(state.poolSelectMode) bindPoolDragSelect();
   const bulkSelectBtn = document.getElementById('bulkSelectBtn');
   if(bulkSelectBtn) bulkSelectBtn.addEventListener('click', ()=>{ state.folderMenuOpen = state.folderMenuOpen === 'select' ? false : 'select'; render(); });
@@ -3500,14 +3549,12 @@ function bindPoolTabEvents(){
   if(bulkFolderBtn) bulkFolderBtn.addEventListener('click', ()=>{ state.folderMenuOpen = state.folderMenuOpen === 'add' ? false : 'add'; render(); });
   const bulkUnfolderBtn = document.getElementById('bulkUnfolderBtn');
   if(bulkUnfolderBtn) bulkUnfolderBtn.addEventListener('click', ()=>{ state.folderMenuOpen = state.folderMenuOpen === 'remove' ? false : 'remove'; render(); });
-
   const selectedNow = () => Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
   const hasFolder = (id, fid) => { const v = state.pool.find(x=>x.id===id); return !!v && (v.folderIds||[]).includes(fid); };
   const undoAction = work => ({ label:'Rückgängig', fn: async ()=>{
     try{ await work(); await loadPool(); render(); showToast('Rückgängig gemacht', { type:'info' }); }
     catch(err){ console.error(err); showToast('Rückgängig hat nicht geklappt: ' + err.message, { type:'error' }); }
   }});
-
   document.querySelectorAll('[data-bulk-folder]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(bulkFolderBusy) return;
@@ -3537,7 +3584,6 @@ function bindPoolTabEvents(){
       }finally{ bulkFolderBusy = false; }
     });
   });
-
   document.querySelectorAll('[data-bulk-unfolder]').forEach(btn=>{
     btn.addEventListener('click', async ()=>{
       if(bulkFolderBusy) return;
@@ -3561,7 +3607,6 @@ function bindPoolTabEvents(){
       }finally{ bulkFolderBusy = false; }
     });
   });
-
   const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
   if(bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', async ()=>{
     const ids = Object.keys(state.poolSelected).filter(id=>state.poolSelected[id]);
@@ -3584,7 +3629,6 @@ function bindPoolTabEvents(){
   });
   const bulkClearBtn = document.getElementById('bulkClearBtn');
   if(bulkClearBtn) bulkClearBtn.addEventListener('click', ()=>{ state.poolSelected = {}; state.folderMenuOpen = false; render(); });
-
   const createFolderBtn = document.getElementById('createFolderBtn');
   if(createFolderBtn) createFolderBtn.addEventListener('click', async ()=>{
     const nameInput = document.getElementById('newFolderName');
@@ -3605,7 +3649,6 @@ function bindPoolTabEvents(){
       }catch(err){ console.error(err); }
     });
   });
-
   document.querySelectorAll('[data-edit]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       startEditEntry(state.pool.find(x=>x.id===btn.dataset.edit));
@@ -3624,13 +3667,11 @@ function bindPoolTabEvents(){
     });
   });
 }
-
 function bindPoolDragSelect(){
   const list = document.querySelector('.pool-list');
   if(!list) return;
   const rows = () => Array.from(list.querySelectorAll('[data-row]'));
   let drag = null, raf = null, pt = { x:0, y:0 };
-
   function paint(){
     rows().forEach(r=>{
       const on = !!state.poolSelected[r.dataset.row];
@@ -3675,7 +3716,6 @@ function bindPoolDragSelect(){
     if(raf){ cancelAnimationFrame(raf); raf = null; }
     render();
   }
-
   list.addEventListener('pointerdown', e=>{
     if(e.pointerType !== 'mouse' || e.button !== 0) return;
     if(e.target.closest('.actions')) return;
@@ -3695,7 +3735,6 @@ function bindPoolDragSelect(){
     document.addEventListener('pointerup', onUp);
     document.addEventListener('pointercancel', onUp);
   });
-
   let touch = null;
   list.addEventListener('touchstart', e=>{
     if(e.touches.length !== 1 || e.target.closest('.actions')) return;
@@ -3733,7 +3772,7 @@ function bindPoolDragSelect(){
   });
 }
 
-/* ===================== PRACTICE TAB ===================== */
+/* ===================== PRACTICE ===================== */
 function renderPracticeTab(){
   if(state.pool.length===0){
     return `<div class="panel"><div class="empty-state"><div class="empty-title">Leerer Pool</div><div class="empty-note">Füge zuerst ein paar Vokabeln hinzu.</div></div></div>`;
@@ -3744,18 +3783,15 @@ function renderPracticeTab(){
       <option value="" ${!state.practice.folderId?'selected':''}>Alle Ordner</option>
       ${state.folders.map(f=>`<option value="${f.id}" ${state.practice.folderId===f.id?'selected':''}>${escapeHtml(f.name)}</option>`).join('')}
     </select>`;
-
   if(filtered.length===0){
     return `<div class="panel practice-wrap"><div class="practice-top-row"><span></span>${folderSelectHtml}</div>
       <div class="empty-state"><div class="empty-title">Keine Vokabeln</div><div class="empty-note">In diesem Ordner sind keine Vokabeln.</div></div></div>`;
   }
-
   if(state.practice.order.length===0 || !state.practice.order.every(id => filtered.some(v=>v.id===id))){
     state.practice.order = shuffle(filtered.map(v=>v.id));
     state.practice.idx = 0; state.practice.flipped = false;
   }
   if(state.practice.idx >= state.practice.order.length) state.practice.idx = 0;
-
   const id = state.practice.order[state.practice.idx];
   const v = state.pool.find(x=>x.id===id);
   if(!v){
@@ -3763,15 +3799,12 @@ function renderPracticeTab(){
     state.practice.idx = 0;
     return renderPracticeTab();
   }
-
   const formsLines = formFieldsFor(v.type).map(f=>{
     const val = v.forms[f.key];
     if(!val) return null;
     return `${f.label.replace('(falls vorhanden)','').trim()}: <b>${escapeHtml(val)}</b>`;
   }).filter(Boolean).join('<br>');
-
   const progressPct = Math.round(((state.practice.idx+1) / state.practice.order.length) * 100);
-
   return `
     <div class="panel practice-wrap">
       <div class="practice-top-row">
@@ -3809,11 +3842,9 @@ function renderPracticeTab(){
     </div>
   `;
 }
-
 function bindPracticeEvents(){
   const folderSelect = document.getElementById('practiceFolderSelect');
   if(folderSelect) folderSelect.addEventListener('change', e=>{ state.practice.folderId = e.target.value; state.practice.order = []; render(); });
-
   const card = document.getElementById('flashcard');
   if(!card) return;
   card.addEventListener('click', ()=>{ state.practice.flipped = !state.practice.flipped; card.classList.toggle('flipped', state.practice.flipped); AudioEngine.playFlip(); });
@@ -3837,7 +3868,7 @@ function bindPracticeEvents(){
   });
 }
 
-/* ===================== TEST TAB ===================== */
+/* ===================== TEST ===================== */
 function renderTestTab(){
   if(state.pool.length===0){
     return `<div class="panel"><div class="empty-state"><div class="empty-title">Leerer Pool</div><div class="empty-note">Füge zuerst ein paar Vokabeln hinzu.</div></div></div>`;
@@ -3852,7 +3883,6 @@ function renderTestSettings(){
   const max = filtered.length;
   const currentCount = Math.max(1, Math.min(state.test.settings.count || 10, max || 1));
   if(state.test.settings.count !== currentCount) state.test.settings.count = currentCount;
-
   const allSelected = currentCount === max;
 
   return `
@@ -3860,7 +3890,7 @@ function renderTestSettings(){
       <h2 class="section-title">Test vorbereiten</h2>
       <div class="test-flow">
         <div class="test-step">
-          <div class="test-step-label"><span class="test-step-num">1</span>Aus welchem Bereich?</div>
+          <div class="test-step-label"><span class="test-step-num">1</span>Bereich wählen</div>
           <select class="select-field" id="testFolderSelect" aria-label="Ordner auswählen">
             <option value="" ${!state.test.settings.folderId?'selected':''}>Alle Ordner (${state.pool.length} Vokabeln)</option>
             ${state.folders.map(f=>`<option value="${f.id}" ${state.test.settings.folderId===f.id?'selected':''}>${escapeHtml(f.name)} (${poolByFolder(f.id).length})</option>`).join('')}
@@ -3868,16 +3898,26 @@ function renderTestSettings(){
         </div>
         ${max === 0 ? '<div class="empty-note">In diesem Ordner sind keine Vokabeln.</div>' : `
         <div class="test-step">
-          <div class="test-step-label"><span class="test-step-num">2</span>Wie viele Vokabeln? <span style="text-transform:none;letter-spacing:0;font-style:italic;color:var(--ink-mute);">frei wählbar</span></div>
-          <div class="count-picker">
-            <input type="range" id="countSlider" min="1" max="${max}" value="${currentCount}" aria-label="Anzahl Vokabeln">
-            <div class="count-input-wrap">
-              <input type="number" id="countInput" min="1" max="${max}" value="${currentCount}" aria-label="Anzahl eingeben">
-              <span class="count-total">/ ${max}</span>
-              <button type="button" class="count-all-btn ${allSelected?'active':''}" id="countAllBtn">Alle</button>
+          <div class="test-step-label"><span class="test-step-num">2</span>Anzahl der Vokabeln</div>
+          <div class="count-picker-card">
+            <div class="count-main">
+              <div class="count-stepper">
+                <button type="button" class="count-step" id="countMinus" aria-label="Weniger">−</button>
+                <input type="text" inputmode="numeric" pattern="[0-9]*" class="count-value" id="countInput" value="${currentCount}" aria-label="Anzahl Vokabeln eingeben">
+                <button type="button" class="count-step" id="countPlus" aria-label="Mehr">+</button>
+              </div>
+            </div>
+            <div class="count-label">von <strong>${max}</strong> Vokabeln im gewählten Bereich</div>
+            <div class="count-slider-row">
+              <input type="range" id="countSlider" min="1" max="${max}" value="${currentCount}" aria-label="Anzahl über Regler wählen">
+            </div>
+            <div class="count-presets">
+              ${[5,10,20,50].filter(n => n < max).map(n =>
+                `<button type="button" class="count-preset ${currentCount===n?'active':''}" data-count="${n}">${n}</button>`
+              ).join('')}
+              <button type="button" class="count-preset ${allSelected?'active':''}" data-count="all">Alle (${max})</button>
             </div>
           </div>
-          <div class="count-hint">Ziehe den Regler, tippe eine Zahl ein oder wähle „Alle".</div>
         </div>
         <div class="test-step">
           <div class="test-step-label"><span class="test-step-num">3</span>Was soll abgefragt werden?</div>
@@ -3901,7 +3941,6 @@ function renderTestSettings(){
     </div>
   `;
 }
-
 function meaningCountFor(v, mode){
   const total = v.meanings.length;
   if(total === 0) return 0;
@@ -3910,19 +3949,16 @@ function meaningCountFor(v, mode){
   const cap = Math.min(3, total);
   return 1 + Math.floor(Math.random() * cap);
 }
-
 function buildQuestionFor(v){
   const fields = state.test.settings.withForms ? formFieldsFor(v.type).filter(f => v.forms[f.key]) : [];
   const meaningCount = meaningCountFor(v, state.test.settings.meaningsMode);
   return { id: v.id, fields, meaningCount };
 }
-
 function renderTestQuestion(){
   const q = state.test.queue[state.test.idx];
   const v = state.pool.find(x=>x.id===q.id);
   const checked = state.test.checked;
   const answers = state.test.answers;
-
   const fieldsHtml = q.fields.map(f=>{
     const key = 'field:'+f.key;
     const val = answers[key] || '';
@@ -3937,7 +3973,6 @@ function renderTestQuestion(){
     return `<div class="answer-input-row"><label class="field-label">${f.label}</label>
       <div class="answer-display ${correct?'correct':'incorrect'}">${inner}</div></div>`;
   }).join('');
-
   const correctMeaningsNorm = checked ? gradeMeaningsForDisplay(v.meanings, q.meaningCount, answers) : null;
   const meaningsHtml = Array.from({length:q.meaningCount}).map((_,i)=>{
     const key = 'meaning:'+i;
@@ -3952,11 +3987,8 @@ function renderTestQuestion(){
       : `${val.trim() ? `<span class="wrong-strike">${escapeHtml(val)}</span>` : ''}<span class="correct-fill">${escapeHtml(suggestion||'')}</span>`;
     return `<div class="answer-input-row"><div class="answer-display ${isCorrect?'correct':'incorrect'}">${inner}</div></div>`;
   }).join('');
-
   const allMeaningsHint = checked ? `<div class="field-hint" style="margin-top:6px;">Alle hinterlegten Bedeutungen: ${escapeHtml(v.meanings.join(', '))}</div>` : '';
-
   const progressPct = Math.round(((state.test.idx) / state.test.queue.length) * 100);
-
   return `
     <div class="panel">
       <div class="test-progress">FRAGE ${state.test.idx+1} / ${state.test.queue.length}</div>
@@ -3974,7 +4006,6 @@ function renderTestQuestion(){
     </div>
   `;
 }
-
 function gradeMeaningsForDisplay(meanings, count, answers){
   const correctNorm = meanings.map(normalize);
   const used = new Array(correctNorm.length).fill(false);
@@ -3998,7 +4029,6 @@ function gradeMeaningsForDisplay(meanings, count, answers){
   });
   return { results, suggestions };
 }
-
 function renderTestSummary(){
   let totalFields=0, correctFields=0, totalMeanings=0, correctMeanings=0;
   const details = state.test.results.map(r=>`
@@ -4012,7 +4042,6 @@ function renderTestSummary(){
   const total = totalFields + totalMeanings;
   const correct = correctFields + correctMeanings;
   const pct = total>0 ? Math.round((correct/total)*100) : 0;
-
   return `
     <div class="panel">
       <h2 class="section-title">Testergebnis</h2>
@@ -4027,7 +4056,6 @@ function renderTestSummary(){
     </div>
   `;
 }
-
 function bindTestEvents(){
   const folderSelect = document.getElementById('testFolderSelect');
   if(folderSelect){
@@ -4038,61 +4066,86 @@ function bindTestEvents(){
       render();
     });
   }
-
   const max = poolByFolder(state.test.settings.folderId).length;
-
   const slider = document.getElementById('countSlider');
   const input = document.getElementById('countInput');
+  const minusBtn = document.getElementById('countMinus');
+  const plusBtn = document.getElementById('countPlus');
 
-  function updateCount(newVal){
-    let v = parseInt(newVal, 10);
-    if(isNaN(v)) v = 1;
+  function refreshUI(v){
+    if(slider) slider.value = v;
+    if(input && document.activeElement !== input) input.value = v;
+    if(input && document.activeElement === input){
+      // Nur wenn Nutzer gerade tippt: nicht überschreiben
+    }
+    document.querySelectorAll('.count-preset').forEach(b=>{
+      const dc = b.dataset.count;
+      if(dc === 'all') b.classList.toggle('active', v === max);
+      else b.classList.toggle('active', parseInt(dc,10) === v);
+    });
+    if(minusBtn) minusBtn.disabled = v <= 1;
+    if(plusBtn) plusBtn.disabled = v >= max;
+  }
+
+  function setCount(v){
+    if(isNaN(v)) return;
     v = Math.max(1, Math.min(v, max));
     state.test.settings.count = v;
-    if(slider) slider.value = v;
-    if(input) input.value = v;
-    const allBtn = document.getElementById('countAllBtn');
-    if(allBtn) allBtn.classList.toggle('active', v === max);
+    refreshUI(v);
   }
 
-  if(slider){
-    slider.addEventListener('input', e=> updateCount(e.target.value));
-  }
+  if(slider) slider.addEventListener('input', e=> setCount(parseInt(e.target.value,10)));
+  if(minusBtn) minusBtn.addEventListener('click', ()=> setCount(state.test.settings.count - 1));
+  if(plusBtn) plusBtn.addEventListener('click', ()=> setCount(state.test.settings.count + 1));
+
   if(input){
     input.addEventListener('input', e=>{
-      // Erlaube Zwischenwerte beim Tippen (leeres Feld), aber clampen bei blur
-      const raw = e.target.value;
+      // Nur Ziffern erlauben
+      let raw = e.target.value.replace(/[^0-9]/g, '');
+      if(raw !== e.target.value) e.target.value = raw;
       if(raw === '') return;
-      const v = parseInt(raw, 10);
-      if(!isNaN(v) && v >= 1 && v <= max){
+      let v = parseInt(raw, 10);
+      if(!isNaN(v)){
+        v = Math.max(1, Math.min(v, max));
         state.test.settings.count = v;
         if(slider) slider.value = v;
-        const allBtn = document.getElementById('countAllBtn');
-        if(allBtn) allBtn.classList.toggle('active', v === max);
+        document.querySelectorAll('.count-preset').forEach(b=>{
+          const dc = b.dataset.count;
+          if(dc === 'all') b.classList.toggle('active', v === max);
+          else b.classList.toggle('active', parseInt(dc,10) === v);
+        });
+        if(minusBtn) minusBtn.disabled = v <= 1;
+        if(plusBtn) plusBtn.disabled = v >= max;
       }
     });
     input.addEventListener('blur', e=>{
-      updateCount(e.target.value);
+      setCount(parseInt(e.target.value, 10) || 1);
     });
     input.addEventListener('keydown', e=>{
-      if(e.key === 'Enter'){ e.preventDefault(); updateCount(e.target.value); input.blur(); }
+      if(e.key === 'Enter'){ e.preventDefault(); setCount(parseInt(input.value,10) || 1); input.blur(); }
+      else if(e.key === 'ArrowUp'){ e.preventDefault(); setCount(state.test.settings.count + 1); }
+      else if(e.key === 'ArrowDown'){ e.preventDefault(); setCount(state.test.settings.count - 1); }
     });
   }
-  const allBtn = document.getElementById('countAllBtn');
-  if(allBtn) allBtn.addEventListener('click', ()=>{
-    updateCount(max);
+
+  document.querySelectorAll('.count-preset').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const dc = btn.dataset.count;
+      if(dc === 'all') setCount(max);
+      else setCount(parseInt(dc,10));
+    });
   });
+
+  refreshUI(state.test.settings.count);
 
   const toggle = document.getElementById('withFormsToggle');
   if(toggle) toggle.addEventListener('change', e=>{ state.test.settings.withForms = e.target.checked; });
-
   document.querySelectorAll('#meaningsModeSegmented button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       state.test.settings.meaningsMode = btn.dataset.meaningsmode;
       render();
     });
   });
-
   const startBtn = document.getElementById('startTestBtn');
   if(startBtn) startBtn.addEventListener('click', ()=>{
     const filtered = poolByFolder(state.test.settings.folderId);
@@ -4103,11 +4156,9 @@ function bindTestEvents(){
     state.test.phase = 'running';
     render();
   });
-
   document.querySelectorAll('[data-answer]').forEach(inp=>{
     inp.addEventListener('input', e=>{ state.test.answers[e.target.dataset.answer] = e.target.value; });
   });
-
   const checkBtn = document.getElementById('checkAnswerBtn');
   if(checkBtn) checkBtn.addEventListener('click', ()=>{
     const q = state.test.queue[state.test.idx];
@@ -4126,19 +4177,16 @@ function bindTestEvents(){
     if(allCorrect) AudioEngine.playCorrect(); else AudioEngine.playIncorrect();
     render();
   });
-
   const nextBtn = document.getElementById('nextQuestionBtn');
   if(nextBtn) nextBtn.addEventListener('click', ()=>{
     state.test.idx++; state.test.answers = {}; state.test.checked = false;
     if(state.test.idx >= state.test.queue.length) state.test.phase = 'summary';
     render();
   });
-
   const restartBtn = document.getElementById('restartTestBtn');
   if(restartBtn) restartBtn.addEventListener('click', ()=>{ state.test.phase = 'settings'; render(); });
 }
 
-/* ===================== DISPATCH ===================== */
 function bindTabEvents(){
   if(state.activeTab==='add') bindAddTabEvents();
   else if(state.activeTab==='pool') bindPoolTabEvents();
@@ -4191,20 +4239,12 @@ document.addEventListener('keydown', e=>{
     if(tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar' || e.key === 'ArrowRight'){
       e.preventDefault();
-      if(!state.practice.flipped){
-        card.click();
-      } else {
-        const btn = document.getElementById('nextCard');
-        if(btn) btn.click();
-      }
+      if(!state.practice.flipped){ card.click(); }
+      else { const btn = document.getElementById('nextCard'); if(btn) btn.click(); }
     } else if(e.key === 'ArrowLeft'){
       e.preventDefault();
-      if(state.practice.flipped){
-        card.click();
-      } else {
-        const btn = document.getElementById('prevCard');
-        if(btn) btn.click();
-      }
+      if(state.practice.flipped){ card.click(); }
+      else { const btn = document.getElementById('prevCard'); if(btn) btn.click(); }
     }
   } else if(state.activeTab === 'test' && state.test.phase === 'running'){
     if(e.key !== 'Enter') return;
@@ -4225,7 +4265,6 @@ document.addEventListener('keydown', e=>{
   }
 });
 
-/* ===================== INIT ===================== */
 (async function init(){
   loadDictionary();
   if(STARTUP_ERROR || !sbClient){ render(); return; }
@@ -4237,7 +4276,6 @@ document.addEventListener('keydown', e=>{
     if(state.user) await loadPool();
     state.loading = false;
     render();
-
     sbClient.auth.onAuthStateChange(async (event, session) => {
       if(event === 'PASSWORD_RECOVERY'){
         state.authView = 'recovery';
@@ -4275,10 +4313,7 @@ setTimeout(function(){
   if(stillBlank){
     content.innerHTML =
       '<div class="panel"><h2 class="section-title">Es ist ein unerwarteter Fehler aufgetreten</h2>' +
-      '<div class="setup-notice">Die Seite konnte nicht vollständig starten. Das liegt meist an einem Werbeblocker oder einer ' +
-      'Browser-Erweiterung, die das Laden von <code>cdn.jsdelivr.net</code> (die Supabase-Bibliothek) verhindert, oder an ' +
-      'fehlender Internetverbindung. Lade die Seite neu, deaktiviere ggf. Werbeblocker für diese Seite, oder öffne die ' +
-      'Browser-Konsole (F12) für Details.</div></div>';
+      '<div class="setup-notice">Die Seite konnte nicht vollständig starten. Lade die Seite neu oder öffne die Browser-Konsole (F12).</div></div>';
   }
 }, 4000);
 </script>
