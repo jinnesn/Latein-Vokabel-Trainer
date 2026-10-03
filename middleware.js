@@ -1,28 +1,28 @@
-import { NextResponse } from 'next/server';
-
-export function middleware(req) {
-  const basicAuth = req.headers.get('authorization');
+export default function middleware(request) {
+  const basicAuth = request.headers.get('authorization');
 
   if (basicAuth) {
-    const authValue = basicAuth.split(' ')[1];
-    const [user, pwd] = atob(authValue).split(':');
+    try {
+      const authValue = basicAuth.split(' ')[1];
+      const [user, pwd] = atob(authValue).split(':');
 
-    const validUser = process.env.BASIC_AUTH_USER;
-    const validPassword = process.env.BASIC_AUTH_PASSWORD;
+      const validUser = process.env.BASIC_AUTH_USER;
+      const validPassword = process.env.BASIC_AUTH_PASSWORD;
 
-    if (user === validUser && pwd === validPassword) {
-      return NextResponse.next();
+      if (user === validUser && pwd === validPassword) {
+        // Zugriff gestattet: Anfrage wird normal an die Website weitergeleitet
+        return;
+      }
+    } catch (e) {
+      // Fehler beim Dekodieren abfangen
     }
   }
 
-  return new NextResponse('Zugriff verweigert', {
+  // Zugriff verweigert: Passwort-Abfrage im Browser auslösen
+  return new Response('Zugriff verweigert', {
     status: 401,
     headers: {
       'WWW-Authenticate': 'Basic realm="Privater Entwicklungsbereich"',
     },
   });
 }
-
-export const config = {
-  matcher: '/((?!_next/static|_next/image|favicon.ico).*)',
-};
