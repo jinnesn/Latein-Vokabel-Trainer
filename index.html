@@ -3,7 +3,44 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEXICON — Latein-Vokabeltrainer</title>
+<title>Latein-Vokabeltrainer kostenlos – LEXICON</title>
+<meta name="description" content="Mit LEXICON lernst du lateinische Vokabeln systematisch: Verwalte deinen persönlichen Wortschatz, übe Karteikarten und teste dein Wissen – kostenlos im Browser.">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#e9e0c9">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="de_DE">
+<meta property="og:site_name" content="LEXICON">
+<meta property="og:title" content="LEXICON – Kostenloser Latein-Vokabeltrainer">
+<meta property="og:description" content="Lateinische Vokabeln sammeln, lernen und testen – mit deinem persönlichen Vokabelarchiv im Browser.">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="LEXICON – Latein-Vokabeltrainer">
+<meta name="twitter:description" content="Lateinische Vokabeln sammeln, lernen und testen – kostenlos im Browser.">
+<!-- Nach dem Veröffentlichen optional eine absolute canonical-URL mit deiner echten Domain ergänzen. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "LEXICON",
+  "applicationCategory": "EducationalApplication",
+  "operatingSystem": "Webbrowser",
+  "inLanguage": "de",
+  "description": "Kostenloser Latein-Vokabeltrainer zum Verwalten, Üben und Testen des persönlichen Wortschatzes.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {"@type":"Question","name":"Ist LEXICON kostenlos?","acceptedAnswer":{"@type":"Answer","text":"Ja. LEXICON kann kostenlos im Browser genutzt werden. Für die persönlichen Lernfunktionen benötigst du ein eigenes Konto."}},
+    {"@type":"Question","name":"Kann ich eigene Latein-Vokabeln hinzufügen?","acceptedAnswer":{"@type":"Answer","text":"Ja. Nach der Anmeldung kannst du deinen persönlichen Vokabelpool mit eigenen Einträgen aufbauen und verwalten."}},
+    {"@type":"Question","name":"Kann ich meine Vokabeln in Ordner sortieren?","acceptedAnswer":{"@type":"Answer","text":"Ja. Du kannst deinen Wortschatz in Ordnern organisieren, beispielsweise nach Lektionen oder Themen."}},
+    {"@type":"Question","name":"Gibt es einen Vokabeltest?","acceptedAnswer":{"@type":"Answer","text":"Ja. Neben der Übungsfunktion gibt es einen Testmodus, mit dem du deinen Wortschatz abfragen kannst."}},
+    {"@type":"Question","name":"Muss ich ein Programm installieren?","acceptedAnswer":{"@type":"Answer","text":"Nein. LEXICON läuft im Webbrowser."}}
+  ]
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -354,6 +391,25 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
 .setup-notice code{ background:#fffdf7; border:1px solid var(--line); padding:1px 6px; border-radius:4px; font-family:'IBM Plex Mono', monospace; font-size:13px; }
 
 @media (prefers-reduced-motion: reduce){ .flashcard-inner{ transition:none; } *{ transition:none !important; } }
+
+/* Öffentlicher, suchmaschinenlesbarer Infobereich – bewusst im bestehenden LEXICON-Stil */
+.seo-content{max-width:760px;margin:34px auto 0;color:var(--ink);}
+.seo-content[hidden]{display:none!important;}
+.seo-content .seo-panel{background:rgba(245,239,223,.82);border:1px solid var(--card-edge);border-radius:9px;padding:clamp(18px,4vw,28px);margin:0 0 16px;box-shadow:var(--shadow);}
+.seo-content h2{font-family:'Cinzel',serif;color:var(--accent-dark);font-size:clamp(19px,3vw,24px);margin:0 0 12px;}
+.seo-content h3{font-family:'Cinzel',serif;color:var(--accent-dark);font-size:17px;margin:20px 0 7px;}
+.seo-content p,.seo-content li{font-size:15px;line-height:1.75;color:var(--ink-soft);}
+.seo-content p{margin:8px 0;}
+.seo-content ul{padding-left:22px;margin:10px 0;}
+.seo-content .seo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.seo-content .seo-feature{background:#fffdf7;border:1px solid var(--line);border-radius:7px;padding:14px;}
+.seo-content .seo-feature strong{display:block;color:var(--accent-dark);font-family:'Cinzel',serif;margin-bottom:5px;}
+.seo-content .seo-cta{display:inline-block;margin-top:12px;padding:10px 17px;background:var(--accent);color:#fff9ef;text-decoration:none;border-radius:6px;font-size:14px;}
+.seo-content .seo-cta:hover{background:var(--accent-dark);}
+.seo-content .seo-faq{border-top:1px solid var(--line);padding:12px 0;}
+.seo-content .seo-faq:first-of-type{border-top:0;}
+.seo-content .seo-faq h3{margin:0 0 5px;font-family:'Source Serif 4',Georgia,serif;font-size:16px;}
+@media(max-width:560px){.seo-content .seo-grid{grid-template-columns:1fr}.seo-content{margin-top:22px}}
 </style>
 </head>
 <body>
@@ -385,6 +441,40 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
   </nav>
 
   <main id="content"></main>
+
+  <section class="seo-content" id="seoContent" aria-label="Informationen zum Latein-Vokabeltrainer">
+    <section class="seo-panel">
+      <h2>Latein-Vokabeln lernen mit LEXICON</h2>
+      <p>LEXICON ist ein Latein-Vokabeltrainer für Schülerinnen und Schüler sowie alle, die ihren lateinischen Wortschatz selbstständig aufbauen und wiederholen möchten. In deinem persönlichen Vokabelarchiv kannst du Wörter sammeln, ordnen und anschließend gezielt lernen – direkt im Browser.</p>
+      <p>Statt Vokabeln nur einmal durchzulesen, kannst du deinen Lernwortschatz in Übungsrunden wiederholen und mit einem Vokabeltest überprüfen, welche Wörter du bereits sicher beherrschst.</p>
+      <a class="seo-cta" href="#content" id="seoStartLink">Jetzt anmelden oder Konto erstellen</a>
+    </section>
+
+    <section class="seo-panel">
+      <h2>Das bietet dir der Latein-Vokabeltrainer</h2>
+      <div class="seo-grid">
+        <div class="seo-feature"><strong>Eigener Vokabelpool</strong><p>Lege deinen persönlichen Bestand an lateinischen Vokabeln an und behalte den Überblick über deinen Lernstoff.</p></div>
+        <div class="seo-feature"><strong>Ordnung mit Ordnern</strong><p>Strukturiere deine Vokabeln in Ordnern, zum Beispiel nach Lektionen, Themen oder Unterrichtseinheiten.</p></div>
+        <div class="seo-feature"><strong>Gezielt üben</strong><p>Wiederhole die Wörter aus deinem Vokabelpool in einer eigenen Übungsansicht.</p></div>
+        <div class="seo-feature"><strong>Wissen testen</strong><p>Nutze den Testmodus, um deinen Lernstand zu überprüfen und schwierige Wörter wiederzuerkennen.</p></div>
+      </div>
+    </section>
+
+    <section class="seo-panel">
+      <h2>Lateinische Vokabeln und Formen systematisch lernen</h2>
+      <p>Beim Lernen von Latein kommt es nicht nur auf die deutsche Bedeutung an. Auch grammatische Angaben und Wortformen gehören zum Wortschatz. LEXICON ist auf das Lernen lateinischer Vokabeln ausgelegt und bietet dir einen zentralen Ort, um deine Einträge zu verwalten und regelmäßig zu wiederholen.</p>
+      <p>Du kannst deinen Lernbestand passend zu deinem Unterricht aufbauen – etwa nach Lektionen aus deinem Lateinbuch oder nach einzelnen Themengebieten. So bleibt dein Vokabeltraining an deinen tatsächlichen Lernstoff angeschlossen.</p>
+    </section>
+
+    <section class="seo-panel">
+      <h2>Häufige Fragen zum Vokabellernen</h2>
+      <div class="seo-faq"><h3>Ist LEXICON kostenlos?</h3><p>Ja. LEXICON kann kostenlos im Browser genutzt werden. Für die persönlichen Lernfunktionen benötigst du ein eigenes Konto.</p></div>
+      <div class="seo-faq"><h3>Kann ich eigene Latein-Vokabeln hinzufügen?</h3><p>Ja. Nach der Anmeldung kannst du deinen persönlichen Vokabelpool mit eigenen Einträgen aufbauen und verwalten.</p></div>
+      <div class="seo-faq"><h3>Kann ich meine Vokabeln in Ordner sortieren?</h3><p>Ja. Du kannst deinen Wortschatz in Ordnern organisieren, beispielsweise nach Lektionen oder Themen.</p></div>
+      <div class="seo-faq"><h3>Gibt es einen Vokabeltest?</h3><p>Ja. Neben der Übungsfunktion gibt es einen Testmodus, mit dem du deinen Wortschatz abfragen kannst.</p></div>
+      <div class="seo-faq"><h3>Muss ich ein Programm installieren?</h3><p>Nein. LEXICON läuft im Webbrowser. Du kannst die Website direkt aufrufen und dich dort anmelden.</p></div>
+    </section>
+  </section>
 
 </div>
 
@@ -1290,6 +1380,8 @@ function render(){
   AudioEngine.applyMusicState();
   const nav = document.getElementById('mainNav');
   const el = document.getElementById('content');
+  const seoContent = document.getElementById('seoContent');
+  if(seoContent) seoContent.hidden = !!state.user;
 
   if(STARTUP_ERROR){
     nav.style.display = 'none';
