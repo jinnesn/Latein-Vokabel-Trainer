@@ -30,9 +30,12 @@
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" }
 }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap"></noscript>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root{
   --bg:#e9e0c9;
@@ -414,6 +417,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
 .seo-step-num{flex:0 0 27px;height:27px;display:grid;place-items:center;border-radius:50%;background:var(--accent);color:#fff9ef;font:12px 'IBM Plex Mono',monospace}
 .seo-step b{display:block;margin-bottom:4px;color:var(--accent-dark);font-size:13px}
 .seo-step span{display:block;color:var(--ink-soft);font-size:12px;line-height:1.5}
+.seo-step .seo-step-num{display:grid;place-items:center;color:#fff9ef;font:12px/1 'IBM Plex Mono',monospace}
 .seo-bottom{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-top:24px;padding:21px 24px;background:var(--accent-dark);border-radius:8px;color:#fff9ef}
 .seo-bottom h3{margin:0 0 4px;font:600 18px 'Cinzel',serif}
 .seo-bottom p{margin:0;color:#eadbd0;font-size:13px;line-height:1.5}
@@ -444,7 +448,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
-    <div class="version-tag">Version 28.09. · Auswahl v8</div>
+    <div class="version-tag" id="versionTag" hidden>Version 11.10. · Performance</div>
     <div class="header-actions">
       <div class="settings-bar" id="settingsBar"></div>
       <div class="account-bar" id="accountBar"></div>
@@ -508,6 +512,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =====================================================================
    KONFIGURATION — hier deine Supabase-Zugangsdaten eintragen
@@ -692,8 +697,10 @@ async function deleteFolderRow(id){
    web editor) and commit; every visitor gets the new version on their next load. */
 let DICTIONARY_CACHE = null;
 let DICTIONARY_LOAD_ERROR = false;
+let DICTIONARY_REQUESTED = false;
 async function loadDictionary(){
-  if(DICTIONARY_CACHE) return DICTIONARY_CACHE;
+  if(DICTIONARY_CACHE || DICTIONARY_REQUESTED) return DICTIONARY_CACHE;
+  DICTIONARY_REQUESTED = true;
   try{
     const res = await fetch('dictionary.csv', { cache: 'no-cache' });
     if(!res.ok){ DICTIONARY_CACHE = []; DICTIONARY_LOAD_ERROR = true; return DICTIONARY_CACHE; }
@@ -898,7 +905,8 @@ const AudioEngine = (function(){
   }
 
   function applyMusicState(){
-    if(state.audio.musicEnabled) startMusic(); else stopMusic();
+    if(state.audio.musicEnabled){ if(unlocked) startMusic(); } // vor der ersten Interaktion nichts anlegen
+    else stopMusic();
   }
 
   function setMusicVolume(v){ state.audio.musicVolume = v; if(musicGain) musicGain.gain.value = v; }
@@ -1413,6 +1421,8 @@ function render(){
   const el = document.getElementById('content');
   const seoContent = document.getElementById('seoContent');
   if(seoContent) seoContent.hidden = !!state.user;
+  const versionTag = document.getElementById('versionTag');
+  if(versionTag) versionTag.hidden = !state.user;
 
   if(STARTUP_ERROR){
     nav.style.display = 'none';
@@ -1654,7 +1664,7 @@ function bindRecoveryEvents(){
       state.authView = 'normal';
       state.recoveryError = ''; state.recoveryNotice = '';
       state.activeTab = 'add';
-      if(state.user) await loadPool();
+      if(state.user){ loadDictionary(); await loadPool(); }
     }catch(err){
       state.recoveryError = translateAuthError(err.message);
     }
@@ -2781,12 +2791,11 @@ document.addEventListener('keydown', e=>{
 
 /* ===================== INIT ===================== */
 (async function init(){
-  loadDictionary(); // fire-and-forget: static file, independent of Supabase/auth
   if(STARTUP_ERROR || !sbClient){ render(); return; }
   try{
     const { data: { session } } = await sbClient.auth.getSession();
     state.user = session ? session.user : null;
-    if(state.user) await loadPool();
+    if(state.user){ loadDictionary(); await loadPool(); } // Wörterbuch nur für eingeloggte Nutzer laden
     render();
 
     sbClient.auth.onAuthStateChange(async (event, session) => {
@@ -2800,6 +2809,7 @@ document.addEventListener('keydown', e=>{
       const wasLoggedIn = !!state.user;
       state.user = newUser;
       if(newUser && !wasLoggedIn){
+        loadDictionary();
         await loadPool();
         state.activeTab = 'add';
         render();
