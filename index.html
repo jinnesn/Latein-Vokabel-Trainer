@@ -432,6 +432,15 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
 .auth-modal .panel{max-width:none!important;margin:0!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}
 @media(max-width:700px){.seo-hero{grid-template-columns:1fr;padding:25px 22px;gap:22px}.seo-preview{max-width:390px;width:100%;margin:0 auto}.seo-features,.seo-steps{grid-template-columns:1fr}.seo-feature{min-height:0}.seo-section-heading{display:block}.seo-section-heading p{margin-top:5px}.seo-bottom{align-items:flex-start;flex-direction:column}}
 @media(max-width:420px){.auth-modal{padding:25px 18px 18px}.seo-actions{align-items:stretch;flex-direction:column}.seo-actions .btn{justify-content:center}}
+
+/* Tastatursteuerung im Hinzufügen-Formular */
+.segmented button{white-space:nowrap}
+.segmented button:focus-visible{outline-offset:-3px}
+.key-hint{display:inline-block;min-width:17px;margin-right:7px;padding:0 4px;border:1px solid var(--card-edge);border-radius:4px;font:10.5px/16px 'IBM Plex Mono',monospace;color:var(--ink-faint);background:rgba(255,255,255,.55)}
+.segmented button.active .key-hint{border-color:rgba(255,249,239,.55);color:#fff9ef;background:transparent}
+.kbd-hint{margin-top:16px;color:var(--ink-faint);font:11px/1.9 'IBM Plex Mono',monospace}
+.kbd-hint kbd{display:inline-block;padding:0 5px;border:1px solid var(--card-edge);border-radius:4px;background:#fffdf7;color:var(--ink-soft);font:inherit;font-size:10.5px}
+@media(max-width:520px){.key-hint,.kbd-hint{display:none}}
 </style>
 </head>
 <body>
@@ -448,7 +457,7 @@ input[type=range]{ flex:1; accent-color:var(--accent); }
     </div>
     <p class="subtitle">Dein Latein-Vokabelarchiv</p>
     <div class="pool-stat" id="poolStat"></div>
-    <div class="version-tag" id="versionTag" hidden>Version 11.10. · Performance</div>
+    <div class="version-tag" id="versionTag" hidden>Version 15.10. · Tastatur</div>
     <div class="header-actions">
       <div class="settings-bar" id="settingsBar"></div>
       <div class="account-bar" id="accountBar"></div>
@@ -590,6 +599,7 @@ const state = {
   draftFolderIds: [],
   meaningsDraft: [''],
   errors: {},
+  pendingFocus: null,
   quickAddFolderOpen: false,
   poolFilter: '',
   poolFolderFilter: '',
@@ -1130,7 +1140,7 @@ function renderDictSuggestionsInto(results){
   state.dictActiveIndex = -1;
   if(!results.length){ el.innerHTML = ''; return; }
   el.innerHTML = results.map((r,i)=>`
-    <button type="button" class="dict-suggestion-item" data-suggest-idx="${i}">
+    <button type="button" class="dict-suggestion-item" data-suggest-idx="${i}" tabindex="-1">
       <span class="dsi-word">${escapeHtml(r.latin)}</span>
       <span class="dsi-type">${TYPE_LABELS[r.type]}</span>
       <span class="dsi-meaning">${escapeHtml(r.meanings.slice(0,2).join(', '))}</span>
@@ -1412,7 +1422,16 @@ document.addEventListener('keydown', e=>{
   }
 });
 
+let lastRenderedTab = null;   // zuletzt angezeigter Tab (nur wenn eingeloggt)
+let addSaving = false;        // verhindert doppeltes Speichern bei schnellem Enter
+let sawKeyboard = false;      // wurde auf diesem Geraet schon eine Taste gedrueckt?
+function keyboardLikely(){
+  try{ if(window.matchMedia('(any-pointer: fine)').matches) return true; }catch(e){}
+  return sawKeyboard;
+}
+
 function render(){
+  if(!state.user || STARTUP_ERROR || state.authView === 'recovery') lastRenderedTab = null;
   renderPoolStat();
   renderSettingsBar();
   renderAccountBar();
@@ -1455,6 +1474,9 @@ function render(){
     b.disabled = (b.dataset.tab==='practice' || b.dataset.tab==='test') && state.pool.length===0;
   });
 
+  const enteringAdd = state.activeTab === 'add' && lastRenderedTab !== 'add';
+  lastRenderedTab = state.activeTab;
+  if(enteringAdd && keyboardLikely()) state.pendingFocus = 'latin'; // Tastatur-Eingabe: sofort losschreiben
   if(state.activeTab==='add') el.innerHTML = renderAddTab();
   else if(state.activeTab==='pool') el.innerHTML = renderPoolTab();
   else if(state.activeTab==='practice') el.innerHTML = renderPracticeTab();
@@ -1703,22 +1725,22 @@ function renderAddTab(){
   const latinVal = state.draftLatin || '';
   const forms = state.draftForms || {};
 
-  const typeButtons = Object.entries(TYPE_LABELS).map(([key,label])=>
-    `<button type="button" class="${key===type?'active':''}" data-type="${key}">${label}</button>`
+  const typeButtons = Object.entries(TYPE_LABELS).map(([key,label],i)=>
+    `<button type="button" class="${key===type?'active':''}" data-type="${key}" role="radio" aria-checked="${key===type}" tabindex="${key===type?0:-1}"><span class="key-hint" aria-hidden="true">${i+1}</span>${label}</button>`
   ).join('');
 
   const fields = formFieldsFor(type);
   const fieldsHtml = fields.map(f => {
     const err = state.errors['form:'+f.key];
     return `<div class="field">
-      <input type="text" class="${err?'field-error':''}" data-form-key="${f.key}" value="${escapeHtml(forms[f.key]||'')}" placeholder="${escapeHtml(f.label)}">
+      <input type="text" class="${err?'field-error':''}" data-form-key="${f.key}" value="${escapeHtml(forms[f.key]||'')}" placeholder="${escapeHtml(f.label)}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
       ${err ? `<div class="field-error-msg">${err}</div>` : ''}</div>`;
   }).join('');
 
   const meaningsHtml = state.meaningsDraft.map((m,i)=>`
     <div class="meaning-row">
-      <input type="text" data-meaning-idx="${i}" value="${escapeHtml(m)}" placeholder="Bedeutung ${i+1}${i===0?' *':''}">
-      ${state.meaningsDraft.length>1 ? `<button type="button" class="icon-btn" data-remove-meaning="${i}" title="Entfernen">✕</button>` : ''}
+      <input type="text" data-meaning-idx="${i}" value="${escapeHtml(m)}" placeholder="Bedeutung ${i+1}${i===0?' *':''}" autocomplete="off" enterkeyhint="done">
+      ${state.meaningsDraft.length>1 ? `<button type="button" class="icon-btn" data-remove-meaning="${i}" title="Entfernen" tabindex="-1">✕</button>` : ''}
     </div>
   `).join('');
   const meaningsErr = state.errors['meanings'];
@@ -1738,30 +1760,33 @@ function renderAddTab(){
             </a>
           </div>
           <div class="latin-input-wrap">
-            <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen" autocomplete="off">
+            <input type="text" id="latinInput" class="${latinErr?'field-error':''}" value="${escapeHtml(latinVal)}" placeholder="z. B. amare, puella, bonus, tamen" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="next">
             <div class="dict-suggestions" id="dictSuggestions"></div>
           </div>
           ${latinErr ? `<div class="field-error-msg">${latinErr}</div>` : ''}
         </div>
         <div class="field">
           <label class="field-label">Wortart</label>
-          <div class="segmented" id="typeSegmented">${typeButtons}</div>
+          <div class="segmented" id="typeSegmented" role="radiogroup" aria-label="Wortart">${typeButtons}</div>
         </div>
         <div id="dynamicFields">${fieldsHtml}</div>
         <div class="field">
           <div id="meaningsList">${meaningsHtml}</div>
-          <button type="button" class="link-add" id="addMeaningBtn">+ weitere Bedeutung</button>
+          <button type="button" class="link-add" id="addMeaningBtn" tabindex="-1">+ weitere Bedeutung</button>
           ${meaningsErr ? `<div class="field-error-msg">${meaningsErr}</div>` : ''}
         </div>
         <div class="field">
           <textarea id="notesInput" rows="2" placeholder="Bemerkungen (z. B. Eselsbrücken, Besonderheiten, Kontext …)">${escapeHtml(state.draftNotes)}</textarea>
-          <div class="field-hint">Wird beim Üben mit angezeigt, aber nicht im Test abgefragt.</div>
+          <div class="field-hint">Wird beim Üben mit angezeigt, aber nicht im Test abgefragt. Enter speichert, Shift+Enter = neue Zeile.</div>
         </div>
         <div class="btn-row">
           <button type="submit" class="btn">${editing ? 'Änderungen speichern' : 'Zum Vokabelpool hinzufügen'}</button>
           ${editing ? '<button type="button" class="btn secondary" id="cancelEditBtn">Abbrechen</button>' : ''}
         </div>
-
+        <div class="kbd-hint">
+          <kbd>Enter</kbd> weiter &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>4</kbd> Wortart &nbsp;·&nbsp; <kbd>Shift</kbd>+<kbd>Enter</kbd> weitere Bedeutung<br>
+          <kbd>Enter</kbd> bei der Bedeutung speichert &nbsp;·&nbsp; <kbd>Tab</kbd> springt zu den Bemerkungen
+        </div>
       </form>
     </div>
   `;
@@ -1803,6 +1828,12 @@ function bindAddTabEvents(){
 
   document.getElementById('latinInput').addEventListener('input', e=>{
     state.draftLatin = e.target.value;
+    if(state.errors['latin']){
+      delete state.errors['latin'];
+      e.target.classList.remove('field-error');
+      const oldMsg = e.target.closest('.field').querySelector('.field-error-msg');
+      if(oldMsg) oldMsg.remove();
+    }
     document.getElementById('navigiumLink').href = navigiumUrl(e.target.value);
     state.dictActiveIndex = -1;
     const word = e.target.value.trim();
@@ -1831,12 +1862,41 @@ function bindAddTabEvents(){
     }
   });
 
+  /* ---- Tastatursteuerung ---- */
+  const typeKeys = Object.keys(TYPE_LABELS);
+  const setDraftType = nt => { if(nt === state.draftType) return; state.draftType = nt; state.draftForms = {}; };
+  const focusEl = el => { if(!el) return; el.focus(); if(el.tagName === 'INPUT' && el.select) el.select(); };
+  const firstFieldEl = () => document.querySelector('#dynamicFields [data-form-key]') || document.querySelector('[data-meaning-idx="0"]');
+  const submitForm = () => form.dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}));
+
+  const typeSeg = document.getElementById('typeSegmented');
+  typeSeg.addEventListener('keydown', e=>{
+    if(e.altKey || e.ctrlKey || e.metaKey) return;
+    if(/^[1-4]$/.test(e.key)){
+      e.preventDefault();
+      setDraftType(typeKeys[parseInt(e.key, 10) - 1]);
+      state.pendingFocus = 'firstField';
+      render();
+    } else if(e.key === 'ArrowRight' || e.key === 'ArrowLeft'){
+      e.preventDefault();
+      const i = typeKeys.indexOf(state.draftType);
+      setDraftType(typeKeys[(i + (e.key === 'ArrowRight' ? 1 : -1) + typeKeys.length) % typeKeys.length]);
+      state.pendingFocus = 'type';
+      render();
+    } else if(e.key === 'Enter'){
+      e.preventDefault();
+      focusEl(firstFieldEl());
+    } else if(e.key === ' '){
+      e.preventDefault();
+    }
+  });
+  typeSeg.addEventListener('keyup', e=>{ if(e.key === ' ') e.preventDefault(); });
+
   document.querySelectorAll('#typeSegmented button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      state.draftType = btn.dataset.type;
-      state.draftForms = {};
+      setDraftType(btn.dataset.type);
+      state.pendingFocus = 'latin';
       render();
-      document.getElementById('latinInput').focus();
     });
   });
 
@@ -1864,24 +1924,60 @@ function bindAddTabEvents(){
   const cancelBtn = document.getElementById('cancelEditBtn');
   if(cancelBtn) cancelBtn.addEventListener('click', ()=>{ resetDraft(); render(); });
 
-  // Enter-Taste springt zum nächsten Eingabefeld statt das Formular abzuschicken
+  // Enter = eins weiter; bei Bedeutung/Bemerkung speichert Enter; Shift+Enter = weitere Bedeutung bzw. Zeilenumbruch
   form.addEventListener('keydown', e=>{
+    if(e.isComposing) return;
+    if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); submitForm(); return; }
+    if(e.altKey || e.ctrlKey || e.metaKey) return;
+    const t = e.target;
+    if(t.closest && t.closest('#typeSegmented')) return; // Wortart-Auswahl hat eine eigene Steuerung
+    if(e.key === 'Backspace'){
+      if(t.matches && t.matches('[data-meaning-idx]') && t.value === '' && state.meaningsDraft.length > 1 && !e.repeat){
+        e.preventDefault();
+        const i = parseInt(t.dataset.meaningIdx, 10);
+        state.meaningsDraft.splice(i, 1);
+        state.pendingFocus = 'meaning:' + Math.max(0, i - 1);
+        render();
+      }
+      return;
+    }
     if(e.key !== 'Enter') return;
-    if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') return;
-    e.preventDefault();
-    const focusable = Array.from(form.querySelectorAll('input, select')).filter(el=>!el.disabled);
-    const idx = focusable.indexOf(e.target);
-    if(idx > -1 && idx < focusable.length - 1){
-      const next = focusable[idx+1];
-      next.focus();
-      if(next.select) next.select();
-    } else {
-      form.dispatchEvent(new Event('submit', {cancelable:true, bubbles:true}));
+    if(t.id === 'latinInput'){
+      e.preventDefault();
+      if(!(state.draftLatin || '').trim()){
+        state.errors['latin'] = 'Bitte eine Vokabel eingeben.';
+        state.pendingFocus = 'latin';
+        render();
+        return;
+      }
+      renderDictSuggestionsInto([]);
+      focusEl(document.querySelector('#typeSegmented button.active'));
+    } else if(t.matches && t.matches('[data-form-key]')){
+      e.preventDefault();
+      const fields = Array.from(form.querySelectorAll('[data-form-key]'));
+      const i = fields.indexOf(t);
+      focusEl(i < fields.length - 1 ? fields[i + 1] : document.querySelector('[data-meaning-idx="0"]'));
+    } else if(t.matches && t.matches('[data-meaning-idx]')){
+      e.preventDefault();
+      if(e.shiftKey){
+        if(!t.value.trim()) return; // leere Zeile nicht verdoppeln
+        if(state.meaningsDraft.length >= 6){ showToast('Maximal 6 Bedeutungen'); return; }
+        state.meaningsDraft.push('');
+        state.pendingFocus = 'meaning:' + (state.meaningsDraft.length - 1);
+        render();
+      } else {
+        submitForm();
+      }
+    } else if(t.id === 'notesInput'){
+      if(e.shiftKey) return; // Shift+Enter = Zeilenumbruch
+      e.preventDefault();
+      submitForm();
     }
   });
 
   form.addEventListener('submit', async e=>{
     e.preventDefault();
+    if(addSaving) return;
     state.errors = {};
 
     const latin = (state.draftLatin||'').trim();
@@ -1904,24 +2000,59 @@ function bindAddTabEvents(){
     const meanings = state.meaningsDraft.map(m=>m.trim()).filter(Boolean);
     if(meanings.length===0) state.errors['meanings'] = 'Bitte mindestens eine Bedeutung angeben.';
 
-    if(Object.keys(state.errors).length > 0){ render(); return; }
+    if(Object.keys(state.errors).length > 0){
+      let f = 'latin';
+      if(!state.errors['latin']){
+        const fk = Object.keys(state.errors).find(k=>k.startsWith('form:'));
+        f = fk ? fk : 'meaning:' + Math.max(0, state.meaningsDraft.findIndex(m=>!m.trim()));
+      }
+      state.pendingFocus = f;
+      render();
+      return;
+    }
 
     const entry = { type, latin, forms, meanings, notes: (state.draftNotes||'').trim(), folderIds: state.draftFolderIds.slice() };
+    addSaving = true;
     try{
       const keepFolderIds = entry.folderIds.slice();
-      if(state.editingId !== null) await updateVocabRow(state.editingId, entry);
+      const wasEditing = state.editingId !== null;
+      if(wasEditing) await updateVocabRow(state.editingId, entry);
       else await insertVocab(entry);
       await loadPool();
       resetDraft();
       state.draftFolderIds = keepFolderIds;
+      state.pendingFocus = 'latin';
       AudioEngine.playSave();
       render();
+      showToast('„' + latin + '“ ' + (wasEditing ? 'aktualisiert' : 'gespeichert'));
     }catch(err){
       console.error(err);
       state.errors['latin'] = 'Speichern fehlgeschlagen: ' + err.message;
+      state.pendingFocus = 'latin';
       render();
+    }finally{
+      addSaving = false;
     }
   });
+
+  // Fokus setzen, den ein vorheriger Schritt angefordert hat (z. B. nach Speichern oder Wortart-Wahl)
+  const pf = state.pendingFocus;
+  if(pf){
+    state.pendingFocus = null;
+    let target = null;
+    if(pf === 'latin') target = document.getElementById('latinInput');
+    else if(pf === 'type') target = document.querySelector('#typeSegmented button.active');
+    else if(pf === 'firstField') target = firstFieldEl();
+    else if(pf.startsWith('form:')) target = document.querySelector('[data-form-key="' + pf.slice(5) + '"]');
+    else if(pf.startsWith('meaning:')) target = document.querySelector('[data-meaning-idx="' + pf.slice(8) + '"]');
+    if(target){
+      target.focus();
+      if(target.tagName === 'INPUT' && typeof target.setSelectionRange === 'function'){
+        if(pf === 'firstField' || pf.startsWith('form:')) target.select();
+        else { const n = target.value.length; try{ target.setSelectionRange(n, n); }catch(_){} }
+      }
+    }
+  }
 }
 
 /* ===================== POOL TAB ===================== */
@@ -2788,6 +2919,16 @@ document.addEventListener('click', e=>{
 document.addEventListener('keydown', e=>{
   if(e.key === 'Escape' && state.authPanelOpen) closeAuthModal();
 });
+/* Einfach lostippen: Auf dem Hinzufügen-Tab landen Buchstaben ohne Fokus automatisch im Lateinfeld. */
+document.addEventListener('keydown', e=>{
+  sawKeyboard = true;
+  if(!state.user || state.activeTab !== 'add' || state.profileMenuOpen || state.settingsMenuOpen) return;
+  if(e.ctrlKey || e.metaKey || e.altKey || !e.key || e.key.length !== 1 || e.key === ' ') return;
+  const ae = document.activeElement;
+  if(ae && ae !== document.body && ae !== document.documentElement) return;
+  const inp = document.getElementById('latinInput');
+  if(inp) inp.focus(); // das getippte Zeichen landet danach im Feld
+}, true);
 
 /* ===================== INIT ===================== */
 (async function init(){
